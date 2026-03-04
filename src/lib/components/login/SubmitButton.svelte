@@ -2,16 +2,17 @@
     export let text = "Login";
     export let loading = false;
     export let disabled = false;
+    export let customClass = ""; // Nova prop com valor padrão vazio
 </script>
 
 <button
     type="submit"
     {disabled}
     class="w-full mt-6 px-6 py-3 text-sm font-medium tracking-wide text-white
-    capitalize transition-colors duration-300 transform bg-blue-500
-    rounded-lg hover:bg-blue-400 focus:outline-none focus:ring
-    focus:ring-blue-300 focus:ring-opacity-50
-    {disabled ? 'opacity-50 cursor-not-allowed' : ''}"
+    capitalize transition-colors duration-300 transform rounded-lg
+    focus:outline-none focus:ring focus:ring-opacity-50
+    {disabled ? 'opacity-50 cursor-not-allowed' : ''}
+    {customClass || 'bg-blue-500 hover:bg-blue-400 focus:ring-blue-300'}"
 >
     {#if loading}
         <span class="flex items-center justify-center">
