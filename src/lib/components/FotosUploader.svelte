@@ -1,356 +1,306 @@
 <script lang="ts">
-    export let fotos: Foto[] = [];
-    export let errors: Record<string, string> = {};
-    
     interface Foto {
         id: string;
         url: string;
         file?: File;
         principal: boolean;
     }
-    
-    // Controle do carrossel de fotos
+
+    export let fotos: Foto[] = [];
+    export let errors: Record<string, string> = {};
+
     let fotoIndex = 0;
     let uploadLoading = false;
     const fotoInputId = `foto-${Math.random().toString(36).substr(2, 9)}`;
-    
-    $: fotoAtual = fotos[fotoIndex] || null;
+    const fotoInputIdEmpty = `foto-empty-${Math.random().toString(36).substr(2, 9)}`;
+
+    $: fotoAtual = fotos[fotoIndex] ?? null;
     $: totalFotos = fotos.length;
-    
-    // Função para lidar com upload de múltiplas fotos
+
     const handleFileUpload = async (e: Event) => {
         const input = e.target as HTMLInputElement;
-        if (!input.files || input.files.length === 0) return;
-        
+        if (!input.files?.length) return;
         uploadLoading = true;
-        
         try {
-            // Processar cada arquivo selecionado
             for (let i = 0; i < input.files.length; i++) {
                 const file = input.files[i];
-                
-                // Validar tipo de arquivo
-                if (!file.type.startsWith('image/')) {
-                    errors.foto = 'Apenas imagens são permitidas';
-                    continue;
-                }
-                
-                // Validar tamanho (máximo 5MB)
-                if (file.size > 5 * 1024 * 1024) {
-                    errors.foto = 'Cada imagem deve ter no máximo 5MB';
-                    continue;
-                }
-                
-                // Criar preview local
-                const reader = new FileReader();
-                const fotoId = `foto-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`;
-                
-                await new Promise((resolve) => {
-                    reader.onload = (e) => {
-                        const novaFoto: Foto = {
+                if (!file.type.startsWith('image/')) { errors.foto = 'Apenas imagens são permitidas'; continue; }
+                if (file.size > 5 * 1024 * 1024)     { errors.foto = 'Máx. 5MB por imagem'; continue; }
+                const fotoId = `foto-${Date.now()}-${i}`;
+                await new Promise<void>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        fotos = [...fotos, {
                             id: fotoId,
-                            url: e.target?.result as string,
-                            file: file,
-                            principal: fotos.length === 0 && i === 0 // Primeira foto é principal
-                        };
-                        
-                        fotos = [...fotos, novaFoto];
-                        resolve(null);
+                            url: ev.target?.result as string,
+                            file,
+                            principal: fotos.length === 0 && i === 0
+                        }];
+                        resolve();
                     };
                     reader.readAsDataURL(file);
                 });
             }
-            
-            // Se era a primeira foto, mostrar ela
-            if (fotos.length > 0 && fotoIndex >= fotos.length) {
-                fotoIndex = fotos.length - 1;
-            }
-            
-        } catch {
-            errors.foto = 'Erro ao fazer upload';
-        } finally {
-            uploadLoading = false;
-            // Limpar input
-            input.value = '';
-        }
+            if (fotoIndex >= fotos.length) fotoIndex = Math.max(0, fotos.length - 1);
+        } catch { errors.foto = 'Erro ao processar imagem'; }
+        finally { uploadLoading = false; input.value = ''; }
     };
-    
-    // Função para remover foto
+
     const removerFoto = (fotoId: string) => {
-        const fotoRemovida = fotos.find(f => f.id === fotoId);
+        const era = fotos.find(f => f.id === fotoId);
         fotos = fotos.filter(f => f.id !== fotoId);
-        
-        // Se removeu a foto principal, definir nova principal
-        if (fotoRemovida?.principal && fotos.length > 0) {
-            fotos[0].principal = true;
-        }
-        
-        // Ajustar índice
-        if (fotoIndex >= fotos.length) {
-            fotoIndex = Math.max(0, fotos.length - 1);
-        }
+        if (era?.principal && fotos.length) fotos = fotos.map((f, i) => ({ ...f, principal: i === 0 }));
+        if (fotoIndex >= fotos.length) fotoIndex = Math.max(0, fotos.length - 1);
     };
-    
-    // Função para definir foto como principal
+
     const setFotoPrincipal = (fotoId: string) => {
-        fotos = fotos.map(f => ({
-            ...f,
-            principal: f.id === fotoId
-        }));
-    };
-    
-    // Navegação do carrossel
-    const fotoAnterior = () => {
-        if (fotoIndex > 0) {
-            fotoIndex--;
-        }
-    };
-    
-    const fotoProxima = () => {
-        if (fotoIndex < fotos.length - 1) {
-            fotoIndex++;
-        }
-    };
-    
-    // Handlers de teclado para acessibilidade
-    const handleKeyDownAnterior = (e: KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            fotoAnterior();
-        }
-    };
-    
-    const handleKeyDownProxima = (e: KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            fotoProxima();
-        }
-    };
-    
-    const handleKeyDownThumbnail = (e: KeyboardEvent, idx: number) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            fotoIndex = idx;
-        }
-    };
-    
-    const handleKeyDownRemover = (e: KeyboardEvent, fotoId: string) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            removerFoto(fotoId);
-        }
-    };
-    
-    const handleKeyDownPrincipal = (e: KeyboardEvent, fotoId: string) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setFotoPrincipal(fotoId);
-        }
+        fotos = fotos.map(f => ({ ...f, principal: f.id === fotoId }));
     };
 </script>
 
-<div>
-    <!-- Label associado ao input (acessibilidade) -->
-    <label for={fotoInputId} class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-        Fotos do Perfil <span class="text-red-500">*</span>
-    </label>
-    
-    <!-- Carrossel de Fotos -->
+<div class="uploader">
+    <div class="uploader-header">
+        <span class="uploader-label">Fotos do Perfil <span class="req">*</span></span>
+        <span class="uploader-hint">{totalFotos}/6 fotos</span>
+    </div>
+
     {#if fotos.length > 0}
-        <div class="relative mb-4">
-            <!-- Imagem atual -->
-            <div class="aspect-square w-full max-w-md mx-auto bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden border-2 {fotoAtual?.principal ? 'border-pink-500' : 'border-gray-300'}">
-                {#if fotoAtual}
-                    <img src={fotoAtual.url} alt={`Foto ${fotoIndex + 1} do perfil`} class="w-full h-full object-cover">
-                {/if}
-            </div>
-            
-            <!-- Indicador de principal -->
+        <!-- Main carousel -->
+        <div class="carousel-img" class:is-principal={fotoAtual?.principal}>
+            {#if fotoAtual}
+                <img src={fotoAtual.url} alt={`Foto ${fotoIndex + 1}`} />
+            {/if}
+
             {#if fotoAtual?.principal}
-                <div class="absolute top-2 left-2 bg-pink-500 text-white text-xs px-2 py-1 rounded-full">
-                    Principal
-                </div>
+                <div class="badge-principal">✦ Principal</div>
             {/if}
-            
-            <!-- Botões de navegação -->
+
             {#if totalFotos > 1}
-                <button 
-                    type="button"
-                    on:click={fotoAnterior}
-                    on:keydown={handleKeyDownAnterior}
-                    disabled={fotoIndex === 0}
-                    aria-label="Foto anterior"
-                    title="Foto anterior"
-                    class="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-70 disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-white"
-                >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                    </svg>
+                <button class="nav-btn nav-prev" type="button"
+                    on:click={() => fotoIndex--} disabled={fotoIndex === 0} aria-label="Foto anterior">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
                 </button>
-                
-                <button 
-                    type="button"
-                    on:click={fotoProxima}
-                    on:keydown={handleKeyDownProxima}
-                    disabled={fotoIndex === totalFotos - 1}
-                    aria-label="Próxima foto"
-                    title="Próxima foto"
-                    class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-70 disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-white"
-                >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
+                <button class="nav-btn nav-next" type="button"
+                    on:click={() => fotoIndex++} disabled={fotoIndex === totalFotos - 1} aria-label="Próxima foto">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                 </button>
             {/if}
-            
-            <!-- Contador -->
-            <div class="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
-                {fotoIndex + 1}/{totalFotos}
-            </div>
+
+            <div class="counter">{fotoIndex + 1} / {totalFotos}</div>
         </div>
-        
-        <!-- Miniaturas -->
-        <div class="flex gap-2 overflow-x-auto pb-2 mb-3" role="list" aria-label="Miniaturas das fotos">
-            {#each fotos as foto, idx (foto.id)}
-                <!-- Usando button em vez de div para acessibilidade -->
-                <button 
-                    type="button"
-                    on:click={() => fotoIndex = idx}
-                    on:keydown={(e) => handleKeyDownThumbnail(e, idx)}
-                    aria-label={`Ver foto ${idx + 1}${foto.principal ? ' (principal)' : ''}`}
-                    aria-current={fotoIndex === idx ? 'true' : 'false'}
-                    class="relative shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500 rounded-lg"
-                >
-                    <div class={`
-                        w-16 h-16 rounded-lg overflow-hidden border-2
-                        ${foto.principal ? 'border-pink-500' : 'border-gray-300'}
-                        ${fotoIndex === idx ? 'ring-2 ring-pink-500' : ''}
-                    `}>
-                        <img src={foto.url} alt={`Miniatura ${idx + 1}`} class="w-full h-full object-cover">
-                    </div>
-                    
-                    <!-- Botão remover - agora está SEPARADO, não dentro de outro botão -->
+
+        <!-- Action buttons -->
+        <div class="carousel-actions">
+            {#if fotoAtual && !fotoAtual.principal}
+                <button type="button" class="action-link" on:click={() => fotoAtual && setFotoPrincipal(fotoAtual.id)}>
+                    Definir como principal
                 </button>
-                
-                <!-- Botão remover fora do botão da miniatura -->
-                <div class="relative inline-block ml-[-20px]">
-                    <button 
+            {/if}
+            {#if fotoAtual}
+                <button type="button" class="action-remove" on:click={() => fotoAtual && removerFoto(fotoAtual.id)}>
+                    Remover foto
+                </button>
+            {/if}
+        </div>
+
+        <!-- Thumbnails strip -->
+        <div class="thumbs">
+            {#each fotos as foto, idx (foto.id)}
+                <!-- Plain div wrapper, button inside handles interaction -->
+                <div class="thumb-wrap">
+                    <button
                         type="button"
-                        on:click={(e) => {
-                            e.stopPropagation();
-                            removerFoto(foto.id);
-                        }}
-                        on:keydown={(e) => {
-                            e.stopPropagation();
-                            handleKeyDownRemover(e, foto.id);
-                        }}
-                        aria-label={`Remover foto ${idx + 1}`}
-                        title="Remover foto"
-                        class="bg-red-500 text-white rounded-full p-0.5 w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300"
+                        class="thumb"
+                        class:active={fotoIndex === idx}
+                        class:is-principal={foto.principal}
+                        on:click={() => fotoIndex = idx}
+                        aria-label={`Ver foto ${idx + 1}${foto.principal ? ' (principal)' : ''}`}
+                        aria-current={fotoIndex === idx ? 'true' : 'false'}
                     >
-                        ✕
+                        <img src={foto.url} alt="" />
                     </button>
                 </div>
-                
-                <!-- Indicador de principal -->
-              
             {/each}
-            
-            <!-- Botão adicionar mais -->
-            <div class="relative shrink-0">
-                <input
-                    type="file"
-                    id={fotoInputId}
-                    accept="image/*"
-                    multiple
-                    on:change={handleFileUpload}
-                    class="hidden"
-                    disabled={uploadLoading}
-                />
-                <label 
-                    for={fotoInputId}
-                    class="w-16 h-16 rounded-lg border-2 border-dashed border-gray-400 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-500 {uploadLoading ? 'opacity-50 cursor-not-allowed' : ''}"
-                    tabindex="0"
-                    role="button"
-                    aria-label="Adicionar novas fotos"
-                    on:keydown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            document.getElementById(fotoInputId)?.click();
-                        }
-                    }}
-                >
-                    {#if uploadLoading}
-                        <svg class="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                    {:else}
-                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        <span class="text-[8px] text-gray-500">Adicionar</span>
-                    {/if}
-                </label>
-            </div>
+
+            <!-- Add more -->
+            {#if fotos.length < 6}
+                <div class="thumb-add">
+                    <input type="file" id={fotoInputId} accept="image/*" multiple
+                        on:change={handleFileUpload} class="hidden-input" disabled={uploadLoading} />
+                    <label for={fotoInputId} class="thumb-add-label" aria-label="Adicionar fotos">
+                        {#if uploadLoading}
+                            <span class="mini-spinner"></span>
+                        {:else}
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12M6 12h12"/>
+                            </svg>
+                        {/if}
+                    </label>
+                </div>
+            {/if}
         </div>
-        
-        <!-- Botão definir como principal -->
-        {#if fotoAtual && !fotoAtual.principal}
-            <button 
-                type="button"
-                on:click={() => setFotoPrincipal(fotoAtual.id)}
-                on:keydown={(e) => handleKeyDownPrincipal(e, fotoAtual.id)}
-                class="text-xs text-pink-600 hover:text-pink-700 mb-2 focus:outline-none focus:ring-2 focus:ring-pink-500 p-1 rounded"
-                aria-label="Definir foto atual como principal"
-            >
-                Definir como foto principal
-            </button>
-        {/if}
+
     {:else}
-        <!-- Estado vazio -->
-        <div class="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-            <svg class="w-16 h-16 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p class="text-sm text-gray-500 mb-3">Nenhuma foto adicionada</p>
-            
-            <input
-                type="file"
-                id={fotoInputId}
-                accept="image/*"
-                multiple
-                on:change={handleFileUpload}
-                class="hidden"
-                disabled={uploadLoading}
-            />
-            <label 
-                for={fotoInputId}
-                class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-lg hover:bg-pink-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 {uploadLoading ? 'opacity-50 cursor-not-allowed' : ''}"
-                tabindex="0"
-                role="button"
-                on:keydown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        document.getElementById(fotoInputId)?.click();
-                    }
-                }}
-            >
+        <!-- Empty state -->
+        <div class="empty-state">
+            <input type="file" id={fotoInputIdEmpty} accept="image/*" multiple
+                on:change={handleFileUpload} class="hidden-input" disabled={uploadLoading} />
+
+            <div class="empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <p class="empty-text">Adicione suas melhores fotos</p>
+            <!-- label vinculado ao input, sem role="button" -->
+            <label for={fotoInputIdEmpty} class="empty-btn">
                 {#if uploadLoading}
-                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Enviando...
+                    <span class="mini-spinner white"></span> Enviando...
                 {:else}
                     Escolher fotos
                 {/if}
             </label>
         </div>
     {/if}
-    
+
     {#if errors.foto}
-        <span class="text-xs text-red-500 block mt-2" role="alert">{errors.foto}</span>
+        <p class="error-msg" role="alert">{errors.foto}</p>
     {/if}
-    <p class="text-xs text-gray-500 mt-2">Formatos: JPG, PNG, GIF. Máx: 5MB por foto. Você pode selecionar múltiplas fotos de uma vez.</p>
+    <p class="uploader-hint-bottom">JPG, PNG ou GIF · Máx. 5 MB · Até 6 fotos</p>
 </div>
+
+<style>
+    .uploader { width: 100%; }
+
+    .uploader-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 0.75rem;
+    }
+    .uploader-label {
+        font-size: 0.72rem; font-weight: 500;
+        color: var(--muted, #8A7F79);
+        text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .req { color: var(--rose, #D94F6B); }
+    .uploader-hint { font-size: 0.72rem; color: var(--muted, #8A7F79); }
+    .uploader-hint-bottom { font-size: 0.7rem; color: var(--muted, #8A7F79); margin-top: 0.5rem; }
+
+    .carousel-img {
+        position: relative;
+        aspect-ratio: 4/3;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 2px solid rgba(138,127,121,0.15);
+        background: var(--cream, #FAF7F2);
+        transition: border-color 0.3s;
+        margin-bottom: 0.4rem;
+    }
+    .carousel-img.is-principal { border-color: var(--rose, #D94F6B); }
+    .carousel-img img { width: 100%; height: 100%; object-fit: cover; }
+
+    .badge-principal {
+        position: absolute; top: 10px; left: 10px;
+        background: var(--rose, #D94F6B); color: #fff;
+        font-size: 0.68rem; font-weight: 500;
+        padding: 3px 10px; border-radius: 20px;
+    }
+
+    .nav-btn {
+        position: absolute; top: 50%; transform: translateY(-50%);
+        background: rgba(255,255,255,0.85); backdrop-filter: blur(4px);
+        border: none; border-radius: 50%;
+        width: 34px; height: 34px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; color: var(--ink, #1A1410);
+        transition: background 0.2s, opacity 0.2s; padding: 0;
+    }
+    .nav-btn svg { width: 16px; height: 16px; }
+    .nav-btn:disabled { opacity: 0.3; cursor: default; }
+    .nav-btn:hover:not(:disabled) { background: #fff; }
+    .nav-prev { left: 10px; }
+    .nav-next { right: 10px; }
+
+    .counter {
+        position: absolute; bottom: 10px; right: 10px;
+        background: rgba(0,0,0,0.45); color: #fff;
+        font-size: 0.7rem; padding: 3px 9px; border-radius: 20px;
+    }
+
+    .carousel-actions {
+        display: flex; justify-content: space-between;
+        margin-bottom: 0.75rem; min-height: 1.5rem;
+    }
+    .action-link {
+        background: none; border: none;
+        font-family: 'DM Sans', sans-serif; font-size: 0.78rem;
+        color: var(--gold, #C9A96E); cursor: pointer; padding: 0;
+        transition: color 0.2s;
+    }
+    .action-link:hover { color: var(--rose, #D94F6B); }
+    .action-remove {
+        background: none; border: none;
+        font-family: 'DM Sans', sans-serif; font-size: 0.78rem;
+        color: rgba(138,127,121,0.7); cursor: pointer;
+        padding: 0; margin-left: auto; transition: color 0.2s;
+    }
+    .action-remove:hover { color: var(--rose, #D94F6B); }
+
+    .thumbs {
+        display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 4px;
+    }
+    .thumb-wrap { flex-shrink: 0; }
+    .thumb {
+        width: 60px; height: 60px;
+        border-radius: 10px; overflow: hidden;
+        border: 2px solid transparent; cursor: pointer;
+        padding: 0; background: none;
+        transition: border-color 0.2s; display: block;
+    }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .thumb.active { border-color: var(--rose, #D94F6B); }
+    .thumb.is-principal { border-color: var(--gold, #C9A96E); }
+    .thumb:focus { outline: 2px solid var(--rose, #D94F6B); outline-offset: 2px; }
+
+    .thumb-add { flex-shrink: 0; }
+    .hidden-input { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
+    .thumb-add-label {
+        display: flex; align-items: center; justify-content: center;
+        width: 60px; height: 60px; border-radius: 10px;
+        border: 2px dashed rgba(138,127,121,0.35);
+        cursor: pointer; color: var(--muted, #8A7F79);
+        transition: border-color 0.2s, background 0.2s;
+    }
+    .thumb-add-label svg { width: 20px; height: 20px; }
+    .thumb-add-label:hover { border-color: var(--rose, #D94F6B); background: var(--rose-pale, #FDE8EE); }
+
+    .empty-state {
+        display: flex; flex-direction: column; align-items: center;
+        gap: 0.75rem; padding: 2.5rem 1rem;
+        border: 2px dashed rgba(138,127,121,0.25); border-radius: 14px;
+        background: rgba(255,255,255,0.4);
+    }
+    .empty-icon svg { width: 48px; height: 48px; color: rgba(138,127,121,0.4); }
+    .empty-text { font-size: 0.85rem; color: var(--muted, #8A7F79); }
+    .empty-btn {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        padding: 0.6rem 1.4rem; border-radius: 10px;
+        background: var(--rose, #D94F6B); color: #fff;
+        font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 500;
+        cursor: pointer; transition: opacity 0.2s;
+    }
+    .empty-btn:hover { opacity: 0.88; }
+
+    .mini-spinner {
+        display: inline-block;
+        width: 16px; height: 16px;
+        border: 2px solid rgba(138,127,121,0.3);
+        border-top-color: var(--rose, #D94F6B);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+    }
+    .mini-spinner.white { border-color: rgba(255,255,255,0.3); border-top-color: #fff; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg { font-size: 0.75rem; color: var(--rose, #D94F6B); margin-top: 0.4rem; }
+</style>

@@ -1,47 +1,87 @@
 <script lang="ts">
     import InputField from './InputField.svelte';
+    import SocialLogin from './SocialLogin.svelte';
     import SubmitButton from './SubmitButton.svelte';
-    
-    interface RegisterData { name: string; email: string; password: string; confirmPassword: string; }
-    interface Errors { name?: string; email?: string; password?: string; confirmPassword?: string; }
-    
-    export let onSubmit: (data: RegisterData) => Promise<void> = async () => {};
-    export let onLogin: () => void = () => {};
-    
-    let formData: RegisterData = { name: '', email: '', password: '', confirmPassword: '' };
-    let loading: boolean = false;
+
+    interface LoginData { email: string; password: string; }
+    interface Errors { email?: string; password?: string; }
+
+    export let onSubmit: (data: LoginData) => Promise<void> = async () => {};
+    export let onForgotPassword: () => void = () => {};
+    export let onRegister: () => void = () => {};
+
+    let email = '';
+    let password = '';
+    let loading = false;
     let errors: Errors = {};
-    
+
     const handleSubmit = async (e: Event) => {
         e.preventDefault();
         errors = {};
         let hasError = false;
-        
-        if (!formData.name.trim()) { errors.name = 'Obrigatório'; hasError = true; }
-        if (!formData.email.trim()) { errors.email = 'Obrigatório'; hasError = true; }
-        if (!formData.password) { errors.password = 'Obrigatório'; hasError = true; }
-        else if (formData.password.length < 6) { errors.password = '6+ caracteres'; hasError = true; }
-        if (formData.password !== formData.confirmPassword) { errors.confirmPassword = 'Diferentes'; hasError = true; }
-        
+        if (!email.trim())  { errors.email    = 'Email obrigatório';  hasError = true; }
+        if (!password)      { errors.password = 'Senha obrigatória';  hasError = true; }
         if (!hasError) {
             loading = true;
-            try { await onSubmit(formData); } 
+            try { await onSubmit({ email, password }); }
             finally { loading = false; }
         }
     };
 </script>
 
-<form class="w-full px-3 py-2" on:submit={handleSubmit}> <!-- Padding interno aqui -->
-    <InputField type="text" placeholder="Nome" bind:value={formData.name} error={errors.name} />
-    <InputField type="email" placeholder="Email" bind:value={formData.email} error={errors.email} />
-    <InputField type="password" placeholder="Senha" bind:value={formData.password} error={errors.password} />
-    <InputField type="password" placeholder="Confirmar" bind:value={formData.confirmPassword} error={errors.confirmPassword} />
+<div class="form-header">
+    <h3 class="form-title">Bem-vindo de volta</h3>
+    <p class="form-sub">Entre na sua conta para continuar</p>
+</div>
 
-    <div class="text-center mt-2">
-        <button type="button" on:click={onLogin} class="text-xs text-blue-500">
-            ← Voltar
+<form on:submit={handleSubmit}>
+    <InputField type="email"    placeholder="seu@email.com" label="Email"  bind:value={email}    error={errors.email} />
+    <InputField type="password" placeholder="••••••••"       label="Senha"  bind:value={password} error={errors.password} />
+
+    <div class="forgot-row">
+        <button type="button" class="link-btn" on:click={onForgotPassword}>
+            Esqueceu a senha?
         </button>
     </div>
 
-    <SubmitButton text="Registrar" {loading} disabled={loading} />
+    <SubmitButton text="Entrar" {loading} disabled={loading} />
+    <SocialLogin onRegister={onRegister} />
 </form>
+
+<style>
+    .form-header { text-align: center; margin-bottom: 1.5rem; }
+
+    .form-title {
+        font-family: 'Cormorant Garamond', serif;
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: var(--ink, #1A1410);
+        margin-bottom: 0.25rem;
+        letter-spacing: -0.01em;
+    }
+    .form-sub {
+        font-size: 0.8rem;
+        color: var(--muted, #8A7F79);
+    }
+
+    form { width: 100%; }
+
+    .forgot-row {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: -0.3rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .link-btn {
+        background: none;
+        border: none;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.78rem;
+        color: var(--gold, #C9A96E);
+        cursor: pointer;
+        padding: 0;
+        transition: color 0.2s;
+    }
+    .link-btn:hover { color: var(--rose, #D94F6B); }
+</style>
