@@ -1,67 +1,89 @@
 <script lang="ts">
+    import { goto } from '$app/navigation';
     import LoginSection from '$lib/components/login/LoginSection.svelte';
     import LoginForm from '$lib/components/login/LoginForm.svelte';
     import RegisterForm from '$lib/components/login/RegisterForm.svelte';
     import ForgotPasswordForm from '$lib/components/login/ForgotPasswordForm.svelte';
+    import { authService } from '$lib/services/authService';
+    import { authStore } from '$lib/stores/authStore';
+    import { handleApiError } from '$lib/utils/errorUtils';
 
-    // ─── Tipos ───────────────────────────────────────────────
     interface LoginData    { email: string; password: string; }
     interface RegisterData { name: string; email: string; password: string; confirmPassword: string; }
 
     type AuthMode = 'login' | 'register' | 'forgot';
 
-    // ─── Estado ──────────────────────────────────────────────
-    let mode: AuthMode = 'login';
-    let globalError = '';
-
     const API = 'http://localhost:8080';
 
-    // ─── Helpers ─────────────────────────────────────────────
-    async function apiFetch(path: string, body: object): Promise<Response> {
-        return fetch(`${API}${path}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-    }
+    let mode: AuthMode = 'login';
+    let globalError = '';
+    let successMessage = '';
 
-    function handleApiError(status: number): string {
-        if (status === 401) return 'Email ou senha incorretos.';
-        if (status === 409) return 'Este email já está cadastrado.';
-        if (status === 404) return 'Email não encontrado.';
-        if (status >= 500) return 'Erro no servidor. Tente novamente mais tarde.';
-        return 'Algo deu errado. Tente novamente.';
-    }
+    const clearMessages = () => { globalError = ''; successMessage = ''; };
 
-    // ─── Handlers ────────────────────────────────────────────
+    /**
+     * Verifica se o usuário logado já tem um perfil de Pessoa.
+     * Busca pelo usuarioId (id do User) OU pelo email como fallback.
+     */
+    const verificarPerfil = async (userId: string, userEmail: string): Promise<boolean> => {
+        try {
+            const res = await fetch(`${API}/pessoas`);
+            if (!res.ok) return false;
+            const lista: any[] = await res.json();
+            // Procura pessoa vinculada ao usuário pelo usuarioId ou email
+            return lista.some(p => p.usuarioId === userId || p.email === userEmail);
+        } catch {
+            return false;
+        }
+    };
+
     const handleLogin = async (data: LoginData) => {
-        globalError = '';
-        const res = await apiFetch('/users/login', data);
-        if (!res.ok) { globalError = handleApiError(res.status); throw new Error(); }
-        const user = await res.json();
-        // TODO: salvar token/sessão e redirecionar
-        console.log('Usuário logado:', user);
+        clearMessages();
+        try {
+            const user = await authService.login(data);
+            authStore.login(user);
+
+            // Verifica pelo usuarioId E email (fallback para perfis antigos sem usuarioId)
+            const temPerfil = await verificarPerfil(user.id, user.email ?? data.email);
+
+            if (temPerfil) {
+                await goto('/home');
+            } else {
+                await goto('/Onboarding');
+            }
+        } catch (error) {
+            globalError = handleApiError(error);
+            throw error;
+        }
     };
 
     const handleRegister = async (data: RegisterData) => {
-        globalError = '';
-        const { confirmPassword: _, ...payload } = data; // remove campo de confirmação
-        const res = await apiFetch('/users', payload);
-        if (!res.ok) { globalError = handleApiError(res.status); throw new Error(); }
-        // Após cadastro, volta pro login com mensagem de sucesso
-        mode = 'login';
+        clearMessages();
+        const { confirmPassword: _confirm, ...payload } = data;
+        try {
+            await authService.register(payload);
+            successMessage = 'Conta criada com sucesso! Faça seu login.';
+            mode = 'login';
+        } catch (error) {
+            globalError = handleApiError(error);
+            throw error;
+        }
     };
 
     const handleForgotPassword = async (email: string) => {
-        globalError = '';
-        // Endpoint de recuperação de senha — ajuste conforme sua API
-        const res = await apiFetch('/users/forgot-password', { email });
-        if (!res.ok) { globalError = handleApiError(res.status); throw new Error(); }
+        clearMessages();
+        try {
+            await authService.forgotPassword(email);
+            successMessage = 'Instruções de recuperação enviadas para seu email.';
+            setTimeout(() => { mode = 'login'; clearMessages(); }, 3000);
+        } catch (error) {
+            globalError = handleApiError(error);
+            throw error;
+        }
     };
 </script>
 
 <LoginSection>
-    <!-- Logo + título -->
     <div class="page-header">
         <div class="page-logo">
             <span class="page-star">✦</span>
@@ -80,7 +102,15 @@
         {/if}
     </div>
 
-    <!-- Erro global de API -->
+    {#if successMessage}
+        <div class="success-message" role="status">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+            </svg>
+            {successMessage}
+        </div>
+    {/if}
+
     {#if globalError}
         <div class="global-error" role="alert">
             <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -90,89 +120,36 @@
         </div>
     {/if}
 
-    <!-- Formulários -->
     {#if mode === 'login'}
         <LoginForm
             onSubmit={handleLogin}
-            onForgotPassword={() => { mode = 'forgot'; globalError = ''; }}
-            onRegister={() => { mode = 'register'; globalError = ''; }}
+            onForgotPassword={() => { mode = 'forgot'; clearMessages(); }}
+            onRegister={() => { mode = 'register'; clearMessages(); }}
         />
     {:else if mode === 'register'}
         <RegisterForm
             onSubmit={handleRegister}
-            onLogin={() => { mode = 'login'; globalError = ''; }}
+            onLogin={() => { mode = 'login'; clearMessages(); }}
         />
     {:else}
         <ForgotPasswordForm
             onSubmit={handleForgotPassword}
-            onBackToLogin={() => { mode = 'login'; globalError = ''; }}
+            onBackToLogin={() => { mode = 'login'; clearMessages(); }}
         />
     {/if}
 </LoginSection>
 
 <style>
-    .page-header {
-        text-align: center;
-        margin-bottom: 1.75rem;
-    }
-
-    .page-logo {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        margin-bottom: 1.25rem;
-    }
-    .page-star {
-        font-size: 1.3rem;
-        color: var(--rose, #D94F6B);
-        animation: pulse 3s ease-in-out infinite;
-    }
-    @keyframes pulse {
-        0%, 100% { transform: scale(1); opacity: 1; }
-        50%       { transform: scale(1.2); opacity: 0.8; }
-    }
-    .page-brand {
-        font-family: 'Cormorant Garamond', serif;
-        font-size: 1.7rem;
-        font-weight: 700;
-        color: var(--ink, #1A1410);
-        letter-spacing: -0.02em;
-    }
-
-    .page-title {
-        font-family: 'Cormorant Garamond', serif;
-        font-size: 1.55rem;
-        font-weight: 700;
-        color: var(--ink, #1A1410);
-        letter-spacing: -0.01em;
-        margin-bottom: 0.3rem;
-    }
-    .page-sub {
-        font-size: 0.82rem;
-        color: var(--muted, #8A7F79);
-    }
-
-    /* Erro global de API */
-    .global-error {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: #FEF2F2;
-        border: 1px solid #FECACA;
-        color: #991B1B;
-        font-size: 0.82rem;
-        padding: 0.65rem 0.9rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-        animation: shake 0.35s ease;
-    }
+    .page-header { text-align: center; margin-bottom: 1.75rem; }
+    .page-logo { display: inline-flex; align-items: center; gap: 0.4rem; margin-bottom: 1.25rem; }
+    .page-star { font-size: 1.3rem; color: var(--rose, #D94F6B); animation: pulse 3s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.8; } }
+    .page-brand { font-family: 'Cormorant Garamond', serif; font-size: 1.7rem; font-weight: 700; color: var(--ink, #1A1410); letter-spacing: -0.02em; }
+    .page-title { font-family: 'Cormorant Garamond', serif; font-size: 1.55rem; font-weight: 700; color: var(--ink, #1A1410); letter-spacing: -0.01em; margin-bottom: 0.3rem; }
+    .page-sub { font-size: 0.82rem; color: var(--muted, #8A7F79); }
+    .success-message { display: flex; align-items: center; gap: 0.5rem; background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; font-size: 0.82rem; padding: 0.65rem 0.9rem; border-radius: 10px; margin-bottom: 1rem; }
+    .success-message svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .global-error { display: flex; align-items: center; gap: 0.5rem; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; font-size: 0.82rem; padding: 0.65rem 0.9rem; border-radius: 10px; margin-bottom: 1rem; animation: shake 0.35s ease; }
     .global-error svg { width: 16px; height: 16px; flex-shrink: 0; }
-
-    @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        20%       { transform: translateX(-5px); }
-        40%       { transform: translateX(5px); }
-        60%       { transform: translateX(-3px); }
-        80%       { transform: translateX(3px); }
-    }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
 </style>

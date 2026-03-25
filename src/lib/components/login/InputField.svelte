@@ -6,27 +6,31 @@
     export let value: string = '';
     export let error: string = '';
     export let required: boolean = false;
+    export let readonly: boolean = false; // NOVO
+
+    const fieldId = id || `field-${Math.random().toString(36).substr(2, 9)}`;
 </script>
 
 <div class="field">
     {#if label}
-        <label for={id} class="field-label">
+        <label for={fieldId} class="field-label">
             {label}
             {#if required}<span class="required">*</span>{/if}
         </label>
     {/if}
-
-    <div class="input-wrap" class:has-error={!!error}>
+    <div class="input-wrap" class:has-error={!!error} class:is-readonly={readonly}>
         <input
             {type}
             {placeholder}
-            {id}
+            id={fieldId}
             bind:value
             {required}
+            {readonly}
             class="field-input"
+            class:readonly
+            autocomplete="off"
         />
     </div>
-
     {#if error}
         <span class="field-error" role="alert">{error}</span>
     {/if}
@@ -39,7 +43,6 @@
         gap: 0.3rem;
         margin-bottom: 0.85rem;
     }
-
     .field-label {
         font-size: 0.72rem;
         font-weight: 500;
@@ -47,23 +50,22 @@
         text-transform: uppercase;
         letter-spacing: 0.06em;
     }
-
     .required { color: var(--rose, #D94F6B); margin-left: 2px; }
-
     .input-wrap {
         border: 1.5px solid rgba(138,127,121,0.25);
         border-radius: 10px;
         background: rgba(255,255,255,0.6);
         transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .input-wrap:focus-within {
+    .input-wrap:focus-within:not(.is-readonly) {
         border-color: var(--rose, #D94F6B);
         box-shadow: 0 0 0 3px rgba(217,79,107,0.12);
     }
-    .input-wrap.has-error {
-        border-color: var(--rose, #D94F6B);
+    .input-wrap.has-error { border-color: var(--rose, #D94F6B); }
+    .input-wrap.is-readonly {
+        background: rgba(138,127,121,0.07);
+        border-color: rgba(138,127,121,0.15);
     }
-
     .field-input {
         width: 100%;
         padding: 0.7rem 0.9rem;
@@ -76,7 +78,10 @@
         border-radius: 10px;
     }
     .field-input::placeholder { color: rgba(138,127,121,0.55); }
-
+    .field-input.readonly {
+        color: var(--muted, #8A7F79);
+        cursor: not-allowed;
+    }
     .field-error {
         font-size: 0.72rem;
         color: var(--rose, #D94F6B);
