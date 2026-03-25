@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8080';
+const API_BASE_URL = 'https://pairup-production-b9ee.up.railway.app';
 
 export interface LoginRequest {
     email: string;

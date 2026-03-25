@@ -4,7 +4,7 @@
     import { browser } from '$app/environment';
     import { authStore } from '$lib/stores/authStore';
 
-    const API = 'http://localhost:8080';
+    const API = 'https://pairup-production-b9ee.up.railway.app';
     
     let status = 'loading'; // loading, success, error
     let errorMessage = '';

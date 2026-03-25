@@ -11,7 +11,7 @@
     interface ApiTag  { id: string; nome: string; categoria?: string; }
     interface Foto    { id: string; url: string; file?: File; principal: boolean; }
 
-    const API = 'http://localhost:8080';
+    const API = 'https://pairup-production-b9ee.up.railway.app';
 
     const storedUser = browser ? JSON.parse(localStorage.getItem('user') ?? 'null') : null;
     const MEU_USER_ID: string = storedUser?.id ?? '';

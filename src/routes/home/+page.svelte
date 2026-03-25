@@ -38,7 +38,7 @@
     let tagsLoading = true;
     let searchTagTerm = '';
 
-    const API = 'http://localhost:8080';
+    const API = 'https://pairup-production-b9ee.up.railway.app';
     const storedUser = browser ? JSON.parse(localStorage.getItem('user') ?? 'null') : null;
     const MEU_EMAIL: string = storedUser?.email ?? '';
 

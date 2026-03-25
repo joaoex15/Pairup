@@ -13,7 +13,7 @@
 
     type AuthMode = 'login' | 'register' | 'forgot';
 
-    const API = 'http://localhost:8080';
+    const API = 'https://pairup-production-b9ee.up.railway.app';
 
     let mode: AuthMode = 'login';
     let globalError = '';

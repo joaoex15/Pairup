@@ -4,7 +4,7 @@
     import InputField from '$lib/components/login/InputField.svelte';
     import FotosUploader from '$lib/components/FotosUploader.svelte';
 
-    const API = 'http://localhost:8080';
+    const API = 'https://pairup-production-b9ee.up.railway.app';
 
     type Genero      = 'MASCULINO' | 'FEMININO' | 'NAO_BINARIO' | 'OUTRO';
     type Sexualidade = 'HETERO' | 'GAY' | 'BI' | 'ASSEXUAL' | 'PAN' | 'OUTRO';
