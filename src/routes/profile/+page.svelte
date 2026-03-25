@@ -86,7 +86,7 @@
         const id = caminho.startsWith('google-drive:')
             ? caminho.replace('google-drive:', '')
             : caminho;
-        return `http://localhost:8080/api/imagens/proxy/${id}`;
+        return `https://pairup-production-b9ee.up.railway.app/api/imagens/proxy/${id}`;
     };
 
     onMount(async () => {
