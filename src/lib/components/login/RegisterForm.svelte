@@ -2,13 +2,12 @@
     import InputField from './InputField.svelte';
     import SubmitButton from './SubmitButton.svelte';
 
-    interface RegisterData { name: string; email: string; password: string; confirmPassword: string; }
-    interface Errors { name?: string; email?: string; password?: string; confirmPassword?: string; }
+    interface RegisterData {  email: string; password: string; confirmPassword: string; }
+    interface Errors {  email?: string; password?: string; confirmPassword?: string; }
 
     export let onSubmit: (data: RegisterData) => Promise<void> = async () => {};
     export let onLogin: () => void = () => {};
 
-    let name = '';
     let email = '';
     let password = '';
     let confirmPassword = '';
@@ -20,7 +19,6 @@
         errors = {};
         let hasError = false;
 
-        if (!name.trim())     { errors.name            = 'Nome obrigatório';        hasError = true; }
         if (!email.trim())    { errors.email           = 'Email obrigatório';       hasError = true; }
         if (!password)        { errors.password        = 'Senha obrigatória';       hasError = true; }
         if (!confirmPassword) { errors.confirmPassword = 'Confirme sua senha';      hasError = true; }
@@ -29,7 +27,7 @@
 
         if (!hasError) {
             loading = true;
-            try { await onSubmit({ name, email, password, confirmPassword }); }
+            try { await onSubmit({ email, password, confirmPassword }); }
             finally { loading = false; }
         }
     };
@@ -41,7 +39,6 @@
 </div>
 
 <form on:submit={handleSubmit}>
-    <InputField type="text"     placeholder="Seu nome"      label="Nome"            bind:value={name}            error={errors.name} />
     <InputField type="email"    placeholder="seu@email.com" label="Email"           bind:value={email}           error={errors.email} />
     <InputField type="password" placeholder="••••••••"      label="Senha"           bind:value={password}        error={errors.password} />
     <InputField type="password" placeholder="••••••••"      label="Confirmar senha" bind:value={confirmPassword} error={errors.confirmPassword} />

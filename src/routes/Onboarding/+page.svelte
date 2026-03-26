@@ -7,7 +7,7 @@
     const API = 'https://pairup-production-b9ee.up.railway.app';
 
     type Genero      = 'MASCULINO' | 'FEMININO' | 'NAO_BINARIO' | 'OUTRO';
-    type Sexualidade = 'HETERO' | 'GAY' | 'BI' | 'ASSEXUAL' | 'PAN' | 'OUTRO';
+    type Sexualidade = 'HETERO' | 'HOMOSEXUAL' | 'BI' | 'PAN' | 'ASSEXUAL' | 'OUTRO';
 
     interface ApiTag { id: string; nome: string; categoria?: string; ativo?: boolean; }
     interface Foto   { id: string; url: string; file?: File; principal: boolean; }
@@ -81,13 +81,14 @@
         { value: 'NAO_BINARIO', label: 'Não-binário' },
         { value: 'OUTRO',       label: 'Outro'       }
     ];
+
     const sexualidades = [
-        { value: 'HETERO',   label: 'Heterossexual' },
-        { value: 'GAY',      label: 'Gay / Lésbica'  },
-        { value: 'BI',       label: 'Bissexual'      },
-        { value: 'ASSEXUAL', label: 'Assexual'       },
-        { value: 'PAN',      label: 'Pansexual'      },
-        { value: 'OUTRO',    label: 'Outro'          }
+        { value: 'HETERO',      label: 'Heterossexual'  },
+        { value: 'HOMOSEXUAL',  label: 'Homossexual'    },
+        { value: 'BI',          label: 'Bissexual'      },
+        { value: 'PAN',         label: 'Pansexual'      },
+        { value: 'ASSEXUAL',    label: 'Assexual'       },
+        { value: 'OUTRO',       label: 'Outro'          }
     ];
 
     const stepMeta = [
@@ -128,7 +129,6 @@
         globalError = '';
 
         try {
-            // 1. Cria a Pessoa — inclui usuarioId para vincular ao User logado
             const pessoaPayload = {
                 nome:        formData.nome,
                 curso:       formData.curso,
@@ -141,7 +141,7 @@
                 whatsapp:    formData.whatsapp,
                 telegram:    formData.telegram,
                 ativo:       true,
-                usuarioId:   currentUser?.id ?? '',   // ← vínculo com o User
+                usuarioId:   currentUser?.id ?? '',
                 tags:        selectedTags.map(t => ({ id: t.id }))
             };
 
@@ -158,27 +158,13 @@
 
             const pessoa = await pessoaRes.json();
 
-            // 2. Upload das fotos vinculadas à pessoa criada
             const fotosParaUpload = fotos.filter(f => f.file instanceof File);
-            console.log(`[onboarding] ${fotosParaUpload.length} foto(s) para upload | pessoaId: ${pessoa.id}`);
-
             for (const foto of fotosParaUpload) {
                 const fd = new FormData();
                 fd.append('arquivo',  foto.file as File);
                 fd.append('pessoaId', pessoa.id);
                 fd.append('perfil',   String(foto.principal));
-
-                const uploadRes = await fetch(`${API}/api/imagens/upload`, {
-                    method: 'POST',
-                    body:   fd   // NÃO definir Content-Type — browser adiciona boundary
-                });
-
-                if (!uploadRes.ok) {
-                    const errText = await uploadRes.text().catch(() => '');
-                    console.error('[onboarding] Erro upload:', uploadRes.status, errText);
-                } else {
-                    console.log('[onboarding] Upload OK');
-                }
+                await fetch(`${API}/api/imagens/upload`, { method: 'POST', body: fd });
             }
 
             await goto('/home');
@@ -210,13 +196,12 @@
                      step === 3 ? 'Seus interesses'   : 'Fotos do perfil'}
                 </h1>
                 <p class="ob-sub">
-                    {step === 1 ? 'Conte um pouco sobre você'          :
+                    {step === 1 ? 'Conte um pouco sobre você'           :
                      step === 2 ? 'Como as pessoas podem te encontrar?' :
-                     step === 3 ? 'Escolha até 5 interesses'           : 'Adicione pelo menos uma foto'}
+                     step === 3 ? 'Escolha até 5 interesses'            : 'Adicione pelo menos uma foto'}
                 </p>
             </div>
 
-            <!-- Progress -->
             <div class="progress-wrap">
                 <div class="progress-track">
                     <div class="progress-fill" style="width: {progress}%"></div>
@@ -245,13 +230,12 @@
                 </div>
             {/if}
 
-            <!-- Step 1 -->
             {#if step === 1}
                 <div class="step-body">
                     <InputField type="text"  label="Nome"               placeholder="Nome completo" bind:value={formData.nome}     error={errors.nome}     required />
-                    <InputField type="email" label="Email" placeholder="seu@email.com" bind:value={formData.email} error={errors.email} required readonly />
+                    <InputField type="email" label="Email"              placeholder="seu@email.com" bind:value={formData.email}    error={errors.email}    required readonly />
                     <InputField type="text"  label="Curso"              placeholder="Medicina..."   bind:value={formData.curso} />
-                    <InputField type="date"  label="Data de Nascimento" bind:value={formData.dataNasc} error={errors.dataNasc} required />
+                    <InputField type="date"  label="Data de Nascimento"                             bind:value={formData.dataNasc} error={errors.dataNasc} required />
                     <div class="row-2">
                         <div class="select-field">
                             <label for={generoId} class="select-label">Gênero <span class="req">*</span></label>
@@ -283,7 +267,6 @@
                 </div>
             {/if}
 
-            <!-- Step 2 -->
             {#if step === 2}
                 <div class="step-body">
                     <p class="step-desc">Adicione suas redes para que os matches possam te encontrar. Tudo é opcional.</p>
@@ -302,7 +285,6 @@
                 </div>
             {/if}
 
-            <!-- Step 3 -->
             {#if step === 3}
                 <div class="step-body">
                     {#if tagsLoading}
@@ -318,7 +300,7 @@
                         {#if selectedTags.length > 0}
                             <div class="selected-chips">
                                 {#each selectedTags as tag (tag.id)}
-                                    <button type="button" class="chip chip-selected" on:click={() => toggleTag(tag)} aria-label="Remover {tag.nome}">{tag.nome} ✕</button>
+                                    <button type="button" class="chip chip-selected" on:click={() => toggleTag(tag)}>{tag.nome} ✕</button>
                                 {/each}
                             </div>
                         {/if}
@@ -335,7 +317,6 @@
                                         class:chip-selected={isSelected(tag.id)}
                                         class:chip-disabled={!isSelected(tag.id) && selectedTags.length >= 5}
                                         on:click={() => toggleTag(tag)}
-                                        aria-pressed={isSelected(tag.id)}
                                         disabled={!isSelected(tag.id) && selectedTags.length >= 5}>
                                         {tag.nome}
                                     </button>
@@ -347,7 +328,6 @@
                 </div>
             {/if}
 
-            <!-- Step 4 -->
             {#if step === 4}
                 <div class="step-body">
                     <FotosUploader bind:fotos {errors} />
@@ -378,7 +358,6 @@
                 </div>
             {/if}
 
-            <!-- Nav -->
             <div class="nav-row">
                 {#if step > 1}
                     <button type="button" class="btn-back" on:click={prevStep} disabled={loading}>← Voltar</button>
@@ -408,7 +387,7 @@
     .header-brand { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 700; color: var(--ink, #1A1410); letter-spacing: -.02em; }
     .header-step  { font-size: .75rem; color: var(--muted, #8A7F79); }
     .main { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 1.5rem 1rem 3rem; }
-    .card { width: 100%; max-width: 440px; background: rgba(255,255,255,.82); backdrop-filter: blur(16px); border: 1px solid var(--border, rgba(201,169,110,.22)); border-radius: 20px; box-shadow: 0 8px 40px rgba(217,79,107,.1), 0 2px 10px rgba(26,20,16,.05); padding: 1.75rem; animation: card-in .4s cubic-bezier(.22,1,.36,1) both; }
+    .card { width: 100%; max-width: 440px; background: rgba(255,255,255,.82); backdrop-filter: blur(16px); border: 1px solid var(--border, rgba(201,169,110,.22)); border-radius: 20px; box-shadow: 0 8px 40px rgba(217,79,107,.1); padding: 1.75rem; animation: card-in .4s cubic-bezier(.22,1,.36,1) both; }
     @keyframes card-in { from{opacity:0;transform:translateY(14px) scale(.98)} to{opacity:1;transform:none} }
     .ob-header { text-align: center; margin-bottom: 1.4rem; }
     .ob-title { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 700; color: var(--ink, #1A1410); letter-spacing: -.01em; margin-bottom: .2rem; }
@@ -463,7 +442,7 @@
     .tags-pool { display: flex; flex-wrap: wrap; gap: .38rem; max-height: 160px; overflow-y: auto; padding: .5rem; border: 1.5px solid rgba(138,127,121,.15); border-radius: 10px; background: rgba(255,255,255,.4); margin-bottom: .4rem; }
     .no-results { font-size: .8rem; color: var(--muted, #8A7F79); padding: .5rem; }
     .tags-tip   { font-size: .68rem; color: var(--muted, #8A7F79); }
-    .chip { padding: .3rem .8rem; border-radius: 20px; border: 1.5px solid rgba(138,127,121,.22); background: #fff; color: var(--ink, #1A1410); font-family: 'DM Sans', sans-serif; font-size: .77rem; cursor: pointer; white-space: nowrap; transition: all .15s; display: flex; align-items: center; gap: .3rem; }
+    .chip { padding: .3rem .8rem; border-radius: 20px; border: 1.5px solid rgba(138,127,121,.22); background: #fff; color: var(--ink, #1A1410); font-family: 'DM Sans', sans-serif; font-size: .77rem; cursor: pointer; white-space: nowrap; transition: all .15s; }
     .chip:hover:not(:disabled) { border-color: var(--rose, #D94F6B); color: var(--rose, #D94F6B); }
     .chip-selected { background: var(--rose, #D94F6B); border-color: var(--rose, #D94F6B); color: #fff; }
     .chip-selected:hover { background: #C0394F; border-color: #C0394F; color: #fff; }
@@ -480,8 +459,8 @@
     .btn-back { background: none; border: 1.5px solid rgba(138,127,121,.28); padding: .72rem 1.2rem; border-radius: 11px; font-family: 'DM Sans', sans-serif; font-size: .85rem; color: var(--muted, #8A7F79); cursor: pointer; transition: border-color .2s, color .2s; white-space: nowrap; }
     .btn-back:hover:not(:disabled) { border-color: var(--rose, #D94F6B); color: var(--rose, #D94F6B); }
     .btn-back:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-next { flex: 1; padding: .78rem 1.5rem; border: none; border-radius: 11px; background: linear-gradient(135deg, var(--rose, #D94F6B), #C0394F); color: #fff; font-family: 'DM Sans', sans-serif; font-size: .88rem; font-weight: 500; cursor: pointer; box-shadow: 0 4px 16px rgba(217,79,107,.3); display: flex; align-items: center; justify-content: center; gap: .45rem; transition: opacity .2s, box-shadow .2s; }
-    .btn-next:hover:not(:disabled) { opacity: .91; box-shadow: 0 6px 22px rgba(217,79,107,.4); }
+    .btn-next { flex: 1; padding: .78rem 1.5rem; border: none; border-radius: 11px; background: linear-gradient(135deg, var(--rose, #D94F6B), #C0394F); color: #fff; font-family: 'DM Sans', sans-serif; font-size: .88rem; font-weight: 500; cursor: pointer; box-shadow: 0 4px 16px rgba(217,79,107,.3); display: flex; align-items: center; justify-content: center; gap: .45rem; transition: opacity .2s; }
+    .btn-next:hover:not(:disabled) { opacity: .91; }
     .btn-next:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
     .btn-spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
 </style>
