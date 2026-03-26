@@ -20,8 +20,8 @@
         e.preventDefault();
         errors = {};
         let hasError = false;
-        if (!email.trim())  { errors.email    = 'Email obrigatório';  hasError = true; }
-        if (!password)      { errors.password = 'Senha obrigatória';  hasError = true; }
+        if (!email.trim()) { errors.email    = 'Email obrigatório'; hasError = true; }
+        if (!password)     { errors.password = 'Senha obrigatória'; hasError = true; }
         if (!hasError) {
             loading = true;
             try { await onSubmit({ email, password }); }
@@ -29,23 +29,22 @@
         }
     };
 
-    // NOVO
     const handleGoogleLogin = () => authService.loginWithGoogle();
 </script>
 
 <form on:submit={handleSubmit}>
-    <InputField type="email"    placeholder="seu@email.com" label="Email"  bind:value={email}    error={errors.email} />
-    <InputField type="password" placeholder="••••••••"       label="Senha"  bind:value={password} error={errors.password} />
+    <InputField type="email"    placeholder="seu@email.com" label="Email" bind:value={email}    error={errors.email} />
+    <InputField type="password" placeholder="••••••••"      label="Senha" bind:value={password} error={errors.password} />
+
     <div class="forgot-row">
         <button type="button" class="link-btn" on:click={onForgotPassword}>
             Esqueceu a senha?
         </button>
     </div>
+
     <SubmitButton text="Entrar" {loading} disabled={loading} />
-    <SocialLogin
-        onGoogleClick={handleGoogleLogin}
-        onRegister={onRegister}
-    />
+
+    <SocialLogin onGoogleClick={handleGoogleLogin} onRegister={onRegister} />
 </form>
 
 <style>

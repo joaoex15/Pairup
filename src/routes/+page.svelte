@@ -21,16 +21,11 @@
 
     const clearMessages = () => { globalError = ''; successMessage = ''; };
 
-    /**
-     * Verifica se o usuário logado já tem um perfil de Pessoa.
-     * Busca pelo usuarioId (id do User) OU pelo email como fallback.
-     */
     const verificarPerfil = async (userId: string, userEmail: string): Promise<boolean> => {
         try {
             const res = await fetch(`${API}/pessoas`);
             if (!res.ok) return false;
             const lista: any[] = await res.json();
-            // Procura pessoa vinculada ao usuário pelo usuarioId ou email
             return lista.some(p => p.usuarioId === userId || p.email === userEmail);
         } catch {
             return false;
@@ -42,15 +37,8 @@
         try {
             const user = await authService.login(data);
             authStore.login(user);
-
-            // Verifica pelo usuarioId E email (fallback para perfis antigos sem usuarioId)
             const temPerfil = await verificarPerfil(user.id, user.email ?? data.email);
-
-            if (temPerfil) {
-                await goto('/home');
-            } else {
-                await goto('/Onboarding');
-            }
+            if (temPerfil) { await goto('/home'); } else { await goto('/Onboarding'); }
         } catch (error) {
             globalError = handleApiError(error);
             throw error;
@@ -94,8 +82,7 @@
             <h1 class="page-title">Bem-vindo de volta</h1>
             <p class="page-sub">Entre na sua conta para continuar</p>
         {:else if mode === 'register'}
-            <h1 class="page-title">Criar conta</h1>
-            <p class="page-sub">Comece a encontrar conexões incríveis</p>
+            <!-- título controlado dentro do RegisterForm -->
         {:else}
             <h1 class="page-title">Recuperar senha</h1>
             <p class="page-sub">Enviaremos as instruções por email</p>

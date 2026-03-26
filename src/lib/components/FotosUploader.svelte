@@ -9,7 +9,7 @@
     export let fotos: Foto[] = [];
     export let errors: Record<string, string> = {};
 
-    const API = 'http://localhost:8080';
+    const API = 'https://pairup-production-b9ee.up.railway.app';
 
     let fotoIndex = 0;
     let uploadLoading = false;
