@@ -1,90 +1,97 @@
+<!-- $lib/components/InputField.svelte -->
 <script lang="ts">
-    export let type: string = 'text';
-    export let placeholder: string = '';
     export let label: string = '';
-    export let id: string = '';
+    export let type: string = 'text';
     export let value: string = '';
+    export let placeholder: string = '';
     export let error: string = '';
     export let required: boolean = false;
-    export let readonly: boolean = false; // NOVO
-
-    const fieldId = id || `field-${Math.random().toString(36).substr(2, 9)}`;
+    export let readonly: boolean = false;
+    export let disabled: boolean = false;
+    
+    const id = `input-${Math.random().toString(36).substr(2, 9)}`;
 </script>
 
-<div class="field">
+<div class="input-field">
     {#if label}
-        <label for={fieldId} class="field-label">
+        <label for={id} class="input-label">
             {label}
-            {#if required}<span class="required">*</span>{/if}
+            {#if required}
+                <span class="required">*</span>
+            {/if}
         </label>
     {/if}
-    <div class="input-wrap" class:has-error={!!error} class:is-readonly={readonly}>
-        <input
-            {type}
-            {placeholder}
-            id={fieldId}
-            bind:value
-            {required}
-            {readonly}
-            class="field-input"
-            class:readonly
-            autocomplete="off"
-        />
-    </div>
+    
+    <input
+        {id}
+        {type}
+        bind:value
+        {placeholder}
+        {readonly}
+        {disabled}
+        class="input-el"
+        class:input-error={!!error}
+    />
+    
     {#if error}
-        <span class="field-error" role="alert">{error}</span>
+        <span class="error-message">{error}</span>
     {/if}
 </div>
 
 <style>
-    .field {
+    .input-field {
         display: flex;
         flex-direction: column;
-        gap: 0.3rem;
-        margin-bottom: 0.85rem;
+        gap: 0.28rem;
+        margin-bottom: 0.5rem;
     }
-    .field-label {
-        font-size: 0.72rem;
+    
+    .input-label {
+        font-size: 0.68rem;
         font-weight: 500;
         color: var(--muted, #8A7F79);
         text-transform: uppercase;
         letter-spacing: 0.06em;
     }
-    .required { color: var(--rose, #D94F6B); margin-left: 2px; }
-    .input-wrap {
-        border: 1.5px solid rgba(138,127,121,0.25);
-        border-radius: 10px;
-        background: rgba(255,255,255,0.6);
+    
+    .required {
+        color: var(--rose, #D94F6B);
+        margin-left: 0.15rem;
+    }
+    
+    .input-el {
+        width: 100%;
+        padding: 0.68rem 0.85rem;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.87rem;
+        color: var(--ink, #1A1410);
+        background: rgba(255,255,255,0.65);
+        border: 1.5px solid rgba(138,127,121,0.22);
+        border-radius: 9px;
+        outline: none;
         transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .input-wrap:focus-within:not(.is-readonly) {
+    
+    .input-el::placeholder {
+        color: rgba(138,127,121,0.5);
+    }
+    
+    .input-el:focus {
         border-color: var(--rose, #D94F6B);
-        box-shadow: 0 0 0 3px rgba(217,79,107,0.12);
+        box-shadow: 0 0 0 3px rgba(217,79,107,0.1);
     }
-    .input-wrap.has-error { border-color: var(--rose, #D94F6B); }
-    .input-wrap.is-readonly {
-        background: rgba(138,127,121,0.07);
-        border-color: rgba(138,127,121,0.15);
+    
+    .input-el:read-only {
+        background: rgba(138,127,121,0.08);
+        cursor: default;
     }
-    .field-input {
-        width: 100%;
-        padding: 0.7rem 0.9rem;
-        font-family: 'DM Sans', sans-serif;
-        font-size: 0.9rem;
-        color: var(--ink, #1A1410);
-        background: transparent;
-        border: none;
-        outline: none;
-        border-radius: 10px;
+    
+    .input-error {
+        border-color: var(--rose, #D94F6B);
     }
-    .field-input::placeholder { color: rgba(138,127,121,0.55); }
-    .field-input.readonly {
-        color: var(--muted, #8A7F79);
-        cursor: not-allowed;
-    }
-    .field-error {
-        font-size: 0.72rem;
+    
+    .error-message {
+        font-size: 0.7rem;
         color: var(--rose, #D94F6B);
-        margin-top: 0.1rem;
     }
 </style>

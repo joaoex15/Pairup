@@ -1,102 +1,128 @@
 <script lang="ts">
+    // routes/auth/callback/+page.svelte
+    // ✅ O backend redireciona para:
+    //    /auth/callback?token=<JWT>
+    //    O userId NÃO vem na URL — é extraído do JWT pelo backend
+    //    e o frontend usa o token para chamar /pessoas/me.
+
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
     import { browser } from '$app/environment';
     import { authStore } from '$lib/stores/authStore';
+    import { apiGet, API } from '$lib/services/api';
 
-    const API = 'https://pairup-production-b9ee.up.railway.app';
-    
-    let status = 'loading'; // loading, success, error
+    let status: 'loading' | 'error' = 'loading';
     let errorMessage = '';
 
     onMount(async () => {
         if (!browser) return;
-        
+
         try {
-            // Pegar os parâmetros da URL
             const urlParams = new URLSearchParams(window.location.search);
-            const userId = urlParams.get('userId');
-            const email = urlParams.get('email');
-            const name = urlParams.get('name');
-            
-            if (!userId || !email) {
-                throw new Error('Dados de autenticação inválidos');
+            const token = urlParams.get('token');
+
+            if (!token) {
+                throw new Error('Token de autenticação ausente. Tente fazer login novamente.');
             }
-            
-            // Criar objeto de usuário
-            const user = {
-                id: userId,
-                email: decodeURIComponent(email),
-                name: name ? decodeURIComponent(name) : ''
-            };
-            
-            // Salvar no authStore
-            authStore.login(user);
-            
-            // Verificar se o usuário já tem perfil
-            const temPerfil = await verificarPerfil(userId, user.email);
-            
-            if (temPerfil) {
+
+            // ✅ Salva o token ANTES de qualquer chamada autenticada
+            localStorage.setItem('token', token);
+
+            // ✅ Busca os dados do usuário usando o token (backend valida o JWT)
+            const res = await fetch(`${API}/users/me`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (!res.ok) {
+                throw new Error('Não foi possível recuperar seus dados. Faça login novamente.');
+            }
+
+            const user = await res.json();
+
+            // Salva user + token no store (e no localStorage via store)
+            authStore.login(user, token);
+
+            // ✅ Verifica se o usuário já tem perfil (Pessoa) via endpoint seguro
+            const perfilRes = await fetch(`${API}/pessoas/me`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (perfilRes.ok) {
                 await goto('/home');
-            } else {
+            } else if (perfilRes.status === 404) {
                 await goto('/Onboarding');
+            } else {
+                // Qualquer outro erro — redireciona para home com segurança
+                await goto('/home');
             }
+
         } catch (error) {
-            console.error('Erro no callback:', error);
+            console.error('Erro no callback OAuth:', error);
+            localStorage.removeItem('token');
             status = 'error';
             errorMessage = error instanceof Error ? error.message : 'Erro ao processar login';
-            
-            // Redirecionar para login após 3 segundos
-            setTimeout(() => {
-                goto('/login');
-            }, 3000);
+            setTimeout(() => goto('/'), 3000);
         }
     });
-    
-    const verificarPerfil = async (userId: string, userEmail: string): Promise<boolean> => {
-        try {
-            const res = await fetch(`${API}/pessoas`);
-            if (!res.ok) return false;
-            const lista: any[] = await res.json();
-            // Procura pessoa vinculada ao usuário pelo usuarioId ou email
-            return lista.some(p => p.usuarioId === userId || p.email === userEmail);
-        } catch {
-            return false;
-        }
-    };
 </script>
 
 {#if status === 'loading'}
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-amber-50">
-        <div class="text-center">
-            <div class="inline-block">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500"></div>
-            </div>
-            <p class="mt-4 text-gray-600">Processando login...</p>
+    <div class="shell">
+        <div class="card">
+            <div class="spinner"></div>
+            <p class="label">Entrando na sua conta...</p>
         </div>
     </div>
-{:else if status === 'error'}
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-amber-50">
-        <div class="text-center max-w-md mx-auto p-8 bg-white rounded-2xl shadow-xl">
-            <div class="text-6xl mb-4">⚠️</div>
-            <h1 class="text-2xl font-bold text-gray-800 mb-2">Erro no login</h1>
-            <p class="text-gray-600 mb-4">{errorMessage}</p>
-            <p class="text-sm text-gray-500">Redirecionando para a página de login...</p>
+{:else}
+    <div class="shell">
+        <div class="card card--error">
+            <div class="error-icon">⚠️</div>
+            <h2 class="error-title">Ops, algo deu errado</h2>
+            <p class="error-msg">{errorMessage}</p>
+            <p class="redirect-hint">Redirecionando para o login...</p>
         </div>
     </div>
 {/if}
 
 <style>
-    .animate-spin {
-        animation: spin 1s linear infinite;
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+    :global(body) { margin: 0; font-family: 'DM Sans', sans-serif; background: #FAF7F2; }
+
+    .shell {
+        min-height: 100vh;
+        display: flex; align-items: center; justify-content: center;
+        background: #FAF7F2;
     }
-    
-    @keyframes spin {
-        from {
-            transform: rotate(0deg);
-        }
-        to {
-            transform: rotate(360deg);
-        }
+
+    .card {
+        background: #fff;
+        border: 1px solid rgba(201,169,110,.22);
+        border-radius: 20px;
+        padding: 2.5rem 2rem;
+        text-align: center;
+        box-shadow: 0 8px 40px rgba(217,79,107,.1);
+        display: flex; flex-direction: column; align-items: center; gap: 1rem;
+        min-width: 260px;
     }
+
+    .spinner {
+        width: 44px; height: 44px;
+        border: 3px solid rgba(217,79,107,.15);
+        border-top-color: #D94F6B;
+        border-radius: 50%;
+        animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .label { font-size: .85rem; color: #8A7F79; margin: 0; }
+
+    .card--error { border-color: rgba(239,68,68,.2); }
+    .error-icon  { font-size: 2.5rem; }
+    .error-title {
+        font-family: 'Cormorant Garamond', serif;
+        font-size: 1.4rem; font-weight: 700; color: #1A1410; margin: 0;
+    }
+    .error-msg       { font-size: .82rem; color: #8A7F79; margin: 0; max-width: 280px; line-height: 1.5; }
+    .redirect-hint   { font-size: .75rem; color: rgba(138,127,121,.6); margin: 0; }
 </style>

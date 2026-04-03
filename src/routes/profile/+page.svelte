@@ -1,20 +1,21 @@
 <script lang="ts">
+    // routes/profile/+page.svelte
+    // ✅ USA /pessoas/me e /pessoas/me (PUT/DELETE) — userId vem do JWT
+    // ✅ Upload usa /imagens/upload com JWT
+    // ✅ Sem IDOR: nenhum ID de pessoa na URL
+
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
-    import { browser } from '$app/environment';
+    import { authStore } from '$lib/stores/authStore';
+    import { apiGet, apiPut, apiPatch, apiDelete, apiUpload } from '$lib/services/api';
     import InputField from '$lib/components/login/InputField.svelte';
     import FotosUploader from '$lib/components/FotosUploader.svelte';
 
     type Genero      = 'MASCULINO' | 'FEMININO' | 'NAO_BINARIO' | 'OUTRO';
     type Sexualidade = 'HETERO' | 'HOMOSEXUAL' | 'BI' | 'PAN' | 'ASSEXUAL' | 'OUTRO';
 
-    interface ApiTag  { id: string; nome: string; categoria?: string; }
-    interface Foto    { id: string; url: string; file?: File; principal: boolean; }
-
-    const API = 'https://pairup-production-b9ee.up.railway.app';
-
-    const storedUser = browser ? JSON.parse(localStorage.getItem('user') ?? 'null') : null;
-    const MEU_USER_ID: string = storedUser?.id ?? '';
+    interface ApiTag { id: string; nome: string; categoria?: string; }
+    interface Foto   { id: string; url: string; file?: File; principal: boolean; }
 
     let loading = true;
     let saving  = false;
@@ -23,8 +24,6 @@
     let showDeleteConfirm = false;
     let globalError = '';
     let errors: Record<string, string> = {};
-
-    let pessoaId = '';
 
     let formData = {
         nome: '', curso: '', dataNasc: '', email: '',
@@ -74,12 +73,6 @@
         return '';
     };
 
-    const driveUrl = (caminho: string): string => {
-        if (!caminho) return '';
-        const id = caminho.startsWith('google-drive:') ? caminho.replace('google-drive:', '') : caminho;
-        return `${API}/api/imagens/proxy/${id}`;
-    };
-
     onMount(async () => {
         await Promise.all([loadPessoa(), loadTags()]);
         loading = false;
@@ -87,19 +80,19 @@
 
     const loadPessoa = async () => {
         try {
-            const res = await fetch(`${API}/pessoas`);
-            if (!res.ok) throw new Error();
-            const lista = await res.json();
-            const minha = lista.find((p: any) =>
-                p.email === storedUser?.email || p.usuarioId === MEU_USER_ID
-            );
-            if (!minha) return;
-            pessoaId = minha.id;
+            // ✅ /pessoas/me — backend usa JWT para identificar o usuário
+            const res = await apiGet('/pessoas/me');
+            if (!res.ok) {
+                globalError = 'Não foi possível carregar seu perfil.';
+                return;
+            }
+            const minha = await res.json();
+
             formData = {
                 nome:        minha.nome        ?? '',
                 curso:       minha.curso       ?? '',
                 dataNasc:    normalizarData(minha.dataNasc),
-                email:       minha.email       ?? storedUser?.email ?? '',
+                email:       minha.email       ?? '',
                 genero:      minha.genero      ?? '',
                 sexualidade: minha.sexualidade ?? '',
                 descricao:   minha.descricao   ?? '',
@@ -107,16 +100,21 @@
                 whatsapp:    minha.whatsapp    ?? '',
                 telegram:    minha.telegram    ?? '',
             };
+
             if (minha.tags?.length) {
                 selectedTags = minha.tags.map((t: any) => ({ id: t.id, nome: t.nome ?? '' }));
             }
-            const imgRes = await fetch(`${API}/api/imagens/pessoa/${pessoaId}`);
-            if (imgRes.ok) {
-                const imagens = await imgRes.json();
-                fotos = imagens.map((img: any) => ({
-                    id: img.id, url: driveUrl(img.caminho ?? ''),
-                    principal: img.perfil ?? false, file: undefined,
-                }));
+
+            // Busca fotos (endpoint público)
+            if (minha.id) {
+                const imgRes = await apiGet(`/imagens/pessoa/${minha.id}`);
+                if (imgRes.ok) {
+                    const imagens = await imgRes.json();
+                    fotos = imagens.map((img: any) => ({
+                        id: img.id, url: img.url ?? '',
+                        principal: img.perfil ?? false, file: undefined,
+                    }));
+                }
             }
         } catch {
             globalError = 'Não foi possível carregar seu perfil.';
@@ -126,7 +124,7 @@
     const loadTags = async () => {
         tagsLoading = true;
         try {
-            const res = await fetch(`${API}/tags/ativas`);
+            const res = await apiGet('/tags/ativas');
             if (res.ok) availableTags = await res.json();
         } finally {
             tagsLoading = false;
@@ -139,38 +137,38 @@
         saveSuccess = false;
         globalError = '';
         try {
-            const res = await fetch(`${API}/pessoas/${pessoaId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    nome: formData.nome, curso: formData.curso,
-                    dataNasc: formData.dataNasc, email: formData.email,
-                    genero: formData.genero, sexualidade: formData.sexualidade,
-                    descricao: formData.descricao, instagram: formData.instagram,
-                    whatsapp: formData.whatsapp, telegram: formData.telegram,
-                    ativo: true, tags: selectedTags.map(t => ({ id: t.id })),
-                })
+            // ✅ PUT /pessoas/me — sem pessoaId na URL, backend usa JWT
+            const res = await apiPut('/pessoas/me', {
+                nome: formData.nome, curso: formData.curso,
+                dataNasc: formData.dataNasc, email: formData.email,
+                genero: formData.genero, sexualidade: formData.sexualidade,
+                descricao: formData.descricao, instagram: formData.instagram,
+                whatsapp: formData.whatsapp, telegram: formData.telegram,
+                ativo: true, tags: selectedTags.map(t => ({ id: t.id })),
             });
+
             if (!res.ok) throw new Error();
 
+            // Upload de fotos novas
             const fotosNovas = fotos.filter(f => f.file instanceof File);
             for (const foto of fotosNovas) {
                 const fd = new FormData();
-                fd.append('arquivo',  foto.file as File);
-                fd.append('pessoaId', pessoaId);
-                fd.append('perfil',   String(foto.principal));
-                const uploadRes = await fetch(`${API}/api/imagens/upload`, { method: 'POST', body: fd });
+                fd.append('file',   foto.file as File);
+                fd.append('perfil', String(foto.principal));
+                // ✅ /imagens/upload com JWT — backend usa token para associar à pessoa
+                const uploadRes = await apiUpload('/imagens/upload', fd);
                 if (uploadRes.ok) {
                     const resultado = await uploadRes.json().catch(() => ({}));
-                    if (resultado.caminho) {
+                    if (resultado.url) {
                         fotos = fotos.map(f =>
                             f.file === foto.file
-                                ? { ...f, id: resultado.id, url: driveUrl(resultado.caminho), file: undefined }
+                                ? { ...f, id: resultado.id, url: resultado.url, file: undefined }
                                 : f
                         );
                     }
                 }
             }
+
             saveSuccess = true;
             setTimeout(() => saveSuccess = false, 3000);
         } catch {
@@ -181,7 +179,7 @@
     };
 
     const handleLogout = () => {
-        if (browser) localStorage.clear();
+        authStore.logout();
         goto('/');
     };
 
@@ -189,20 +187,9 @@
         loading = true;
         globalError = '';
         try {
-            // 1. Deleta todas as imagens primeiro
-            if (pessoaId) {
-                await fetch(`${API}/api/imagens/pessoa/${pessoaId}`, { method: 'DELETE' });
-            }
-            // 2. Deleta a pessoa
-            if (pessoaId) {
-                await fetch(`${API}/pessoas/${pessoaId}`, { method: 'DELETE' });
-            }
-            // 3. Deleta o user
-            if (MEU_USER_ID) {
-                await fetch(`${API}/users/${MEU_USER_ID}`, { method: 'DELETE' });
-            }
-            // 4. Limpa e redireciona
-            if (browser) localStorage.clear();
+            // ✅ DELETE /pessoas/me — sem IDs na URL
+            await apiDelete('/pessoas/me');
+            authStore.logout();
             await goto('/');
         } catch {
             globalError = 'Erro ao deletar conta. Tente novamente.';
@@ -210,8 +197,8 @@
         }
     };
 
-    $: fotoAtual = fotos.find(f => f.principal) ?? fotos[0] ?? null;
-    $: descCount = formData.descricao.length;
+    $: fotoAtual  = fotos.find(f => f.principal) ?? fotos[0] ?? null;
+    $: descCount  = formData.descricao.length;
 </script>
 
 <div class="page">
@@ -366,9 +353,8 @@
 
         <div class="footer">
             <div class="footer-inner">
-                <button class="btn-save" on:click={handleSave} disabled={saving || !pessoaId}>
+                <button class="btn-save" on:click={handleSave} disabled={saving}>
                     {#if saving}<span class="btn-spinner"></span> Salvando...
-                    {:else if !pessoaId}Perfil não encontrado
                     {:else}Salvar alterações{/if}
                 </button>
                 <button class="btn-delete-account" on:click={() => showDeleteConfirm = true}>
@@ -378,7 +364,6 @@
         </div>
     {/if}
 
-    <!-- Modal logout -->
     {#if showLogoutConfirm}
         <div class="modal-overlay" on:click|self={() => showLogoutConfirm = false} role="dialog" aria-modal="true">
             <div class="modal">
@@ -393,7 +378,6 @@
         </div>
     {/if}
 
-    <!-- Modal deletar conta -->
     {#if showDeleteConfirm}
         <div class="modal-overlay" on:click|self={() => showDeleteConfirm = false} role="dialog" aria-modal="true">
             <div class="modal">
