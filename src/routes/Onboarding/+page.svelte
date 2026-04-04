@@ -6,7 +6,7 @@
         apiCreatePessoa, apiUploadImagem, apiGetTagsAtivas, apiMarcarCiencia,
         type PessoaPayload, type TagResponse
     } from '$lib/services/api';
-    import InputField    from '$lib/components/InputField.svelte';
+    import InputField    from '$lib/components/login/InputField.svelte';
     import FotosUploader from '$lib/components/FotosUploader.svelte';
     import { validateAge, handleApiError } from '$lib/utils/errorUtils';
 
