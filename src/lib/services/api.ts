@@ -37,22 +37,15 @@ const getBaseUrl = (): string => {
 
 const BASE_URL = getBaseUrl();
 
-// Log apenas em desenvolvimento
 if (import.meta.env.DEV) {
     console.log(`[api] API Base URL: ${BASE_URL}`);
-}
-
-// Validação crítica
-if (!BASE_URL || BASE_URL === 'undefined') {
-    console.error('[api] ❌ VITE_API_BASE não definido corretamente no .env');
-    console.error('[api] ⚠️ As requisições podem falhar!');
 }
 
 // ─── Rate Limiting (client-side) ───────────────────────────────────────────
 
 const rateLimiter = new Map<string, number[]>();
-const RATE_LIMIT_WINDOW = 60000; // 1 minuto
-const RATE_LIMIT_MAX = 30; // 30 requisições por minuto
+const RATE_LIMIT_WINDOW = 60000;
+const RATE_LIMIT_MAX = 30;
 
 const checkRateLimit = (endpoint: string): boolean => {
     const now = Date.now();
@@ -178,11 +171,9 @@ export interface PageResponse<T> {
 function getToken(): string | null {
     if (!browser) return null;
     try {
-        // Tenta buscar do localStorage (authStore salva como 'token')
         const token = localStorage.getItem('token');
         if (token) return token;
         
-        // Fallback: busca dentro do objeto user
         const raw = localStorage.getItem('user');
         if (!raw) return null;
         const user = JSON.parse(raw);
@@ -203,18 +194,18 @@ function authHeaders(): Record<string, string> {
     return headers;
 }
 
+// ⚠️ CORS FIX: Removido header 'X-Requested-With' que causava problema
 async function request<T>(
     endpoint: string,
     options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-    // Rate limiting check
     if (!checkRateLimit(endpoint)) {
         return { error: 'Muitas requisições. Aguarde um momento.', status: 429 };
     }
     
+    // Headers básicos - sem X-Requested-With para evitar CORS
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
         ...authHeaders(),
         ...(options.headers as Record<string, string> ?? {}),
     };
@@ -225,22 +216,20 @@ async function request<T>(
         const res = await fetch(url, { 
             ...options, 
             headers,
-            credentials: 'include' // Importante para cookies de sessão
+            mode: 'cors', // Explicitamente CORS
+            credentials: 'omit' // Mude para 'include' se precisar de cookies
         });
 
-        // Token expirado → logout automático
         if (res.status === 401 && browser) {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             sessionStorage.clear();
             
-            // Evita redirect loop
             if (!window.location.pathname.includes('/auth') && window.location.pathname !== '/') {
                 goto('/');
             }
         }
 
-        // Respostas sem corpo (204, 205)
         if (res.status === 204 || res.status === 205) {
             return { status: res.status };
         }
@@ -264,7 +253,6 @@ async function request<T>(
     } catch (err) {
         console.error(`[api] Request failed: ${endpoint}`, err);
         
-        // Erro de rede
         if (err instanceof TypeError && err.message === 'Failed to fetch') {
             return { error: 'Erro de conexão. Verifique sua internet.', status: 0 };
         }
@@ -273,7 +261,7 @@ async function request<T>(
     }
 }
 
-// Multipart (sem Content-Type para o browser definir boundary)
+// Multipart sem headers problemáticos
 async function requestMultipart<T>(
     endpoint: string,
     body: FormData
@@ -285,7 +273,9 @@ async function requestMultipart<T>(
     try {
         const res = await fetch(`${BASE_URL}${endpoint}`, {
             method: 'POST',
-            headers: authHeaders(),
+            headers: authHeaders(), // Sem Content-Type (FormData define)
+            mode: 'cors',
+            credentials: 'omit',
             body,
         });
 
@@ -324,7 +314,6 @@ export const apiRegister = (user: { nome: string; email: string; password: strin
         body: JSON.stringify(user),
     });
 
-/** Rota não existe no backend — retorna erro controlado sem quebrar. */
 export const apiForgotPassword = (email: string): Promise<ApiResponse> =>
     request('/users/forgot-password', {
         method: 'POST',
@@ -345,10 +334,6 @@ export const apiDeleteMe = () =>
 
 // ─── Pessoas ────────────────────────────────────────────────────────────────
 
-/**
- * Lista perfis com filtros opcionais.
- * Retorna Page<PessoaPerfilDTO> — use .content para o array.
- */
 export const apiGetPessoas = (params?: {
     interesse?: string;
     genero?: string;
@@ -421,10 +406,6 @@ export const apiUploadImagem = (file: File, perfil: boolean) => {
 export const apiDeleteImagem = (imagemId: string) =>
     request(`/imagens/${imagemId}`, { method: 'DELETE' });
 
-/**
- * Retorna a URL pública do proxy (sem fazer download do blob).
- * Use direto no src da <img>.
- */
 export const apiImagemProxyUrl = (publicId: string): string => {
     const token = getToken();
     const base = `${BASE_URL}/api/imagens/proxy/${publicId}`;
@@ -443,7 +424,5 @@ export const apiGetTagsAtivas = () =>
 
 export const getGoogleOAuthUrl = (): string =>
     `${BASE_URL}/oauth2/authorization/google`;
-
-// ─── Export da URL base para uso em outros lugares ─────────────────────────
 
 export const getApiBaseUrl = (): string => BASE_URL;
