@@ -1,97 +1,82 @@
+<!-- src/routes/+page.svelte -->
 <script lang="ts">
-    // routes/+page.svelte
-    // ✅ handleLogin agora salva token + user via authStore.login(user, token)
-
     import { goto } from '$app/navigation';
     import LoginSection from '$lib/components/login/LoginSection.svelte';
     import LoginForm from '$lib/components/login/LoginForm.svelte';
     import RegisterForm from '$lib/components/login/RegisterForm.svelte';
     import ForgotPasswordForm from '$lib/components/login/ForgotPasswordForm.svelte';
+    import { apiLogin, apiRegister, apiForgotPassword, apiGetMyProfile } from '$lib/services/api';
     import { authStore } from '$lib/stores/authStore';
     import { handleApiError } from '$lib/utils/errorUtils';
-    import { API } from '$lib/services/api';
 
     interface LoginData    { email: string; password: string; }
-    interface RegisterData { name: string; email: string; password: string; confirmPassword: string; }
+    interface RegisterData { nome: string; email: string; password: string; confirmPassword: string; }
 
     type AuthMode = 'login' | 'register' | 'forgot';
 
     let mode: AuthMode = 'login';
     let globalError = '';
     let successMessage = '';
+    let isLoading = false;
 
-    const clearMessages = () => { globalError = ''; successMessage = ''; };
+    const clear = () => { globalError = ''; successMessage = ''; };
+
+    /** Verifica se o usuário já criou o perfil (Pessoa) */
+    const temPerfil = async (): Promise<boolean> => {
+        const res = await apiGetMyProfile();
+        return !!res.data && !res.error;
+    };
 
     const handleLogin = async (data: LoginData) => {
-        clearMessages();
+        clear();
+        isLoading = true;
         try {
-            const res = await fetch(`${API}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: data.email, password: data.password }),
+            const res = await apiLogin(data.email, data.password);
+            if (res.error || !res.data) throw new Error(res.error ?? 'Resposta inválida');
+
+            authStore.login({
+                id:    res.data.userId,
+                email: res.data.email,
+                token: res.data.token,
             });
 
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.message ?? 'Email ou senha incorretos.');
-            }
-
-            const { token, user } = await res.json();
-
-            // ✅ Salva user + token (api.ts vai injetar o token em todas as chamadas)
-            authStore.login(user, token);
-
-            // ✅ Verifica perfil via endpoint autenticado (sem expor userId na URL)
-            const perfilRes = await fetch(`${API}/pessoas/me`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (perfilRes.ok) {
-                await goto('/home');
-            } else {
-                await goto('/Onboarding');
-            }
-
-        } catch (error) {
-            globalError = handleApiError(error);
-            throw error;
+            const hasPerfil = await temPerfil();
+            await goto(hasPerfil ? '/home' : '/onboarding');
+        } catch (e) {
+            globalError = handleApiError(e);
+        } finally {
+            isLoading = false;
         }
     };
 
     const handleRegister = async (data: RegisterData) => {
-        clearMessages();
-        const { confirmPassword: _confirm, name, ...rest } = data;
+        clear();
+        isLoading = true;
+        const { confirmPassword: _, ...payload } = data;
         try {
-            const res = await fetch(`${API}/users`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nome: name, ...rest }),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error ?? 'Erro ao criar conta.');
-            }
+            const res = await apiRegister(payload);
+            if (res.error) throw new Error(res.error);
             successMessage = 'Conta criada com sucesso! Faça seu login.';
             mode = 'login';
-        } catch (error) {
-            globalError = handleApiError(error);
-            throw error;
+        } catch (e) {
+            globalError = handleApiError(e);
+        } finally {
+            isLoading = false;
         }
     };
 
     const handleForgotPassword = async (email: string) => {
-        clearMessages();
+        clear();
+        isLoading = true;
         try {
-            await fetch(`${API}/auth/forgot-password`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
-            });
-            successMessage = 'Instruções de recuperação enviadas para seu email.';
-            setTimeout(() => { mode = 'login'; clearMessages(); }, 3000);
-        } catch (error) {
-            globalError = handleApiError(error);
-            throw error;
+            const res = await apiForgotPassword(email);
+            if (res.error) throw new Error(res.error);
+            successMessage = 'Instruções enviadas para seu e-mail.';
+            setTimeout(() => { mode = 'login'; clear(); }, 3000);
+        } catch (e) {
+            globalError = handleApiError(e);
+        } finally {
+            isLoading = false;
         }
     };
 </script>
@@ -108,7 +93,7 @@
             <p class="page-sub">Entre na sua conta para continuar</p>
         {:else if mode === 'forgot'}
             <h1 class="page-title">Recuperar senha</h1>
-            <p class="page-sub">Enviaremos as instruções por email</p>
+            <p class="page-sub">Enviaremos as instruções por e-mail</p>
         {/if}
     </div>
 
@@ -133,33 +118,38 @@
     {#if mode === 'login'}
         <LoginForm
             onSubmit={handleLogin}
-            onForgotPassword={() => { mode = 'forgot'; clearMessages(); }}
-            onRegister={() => { mode = 'register'; clearMessages(); }}
+            onForgotPassword={() => { mode = 'forgot'; clear(); }}
+            onRegister={() => { mode = 'register'; clear(); }}
+            loading={isLoading}
         />
     {:else if mode === 'register'}
         <RegisterForm
             onSubmit={handleRegister}
-            onLogin={() => { mode = 'login'; clearMessages(); }}
+            onLogin={() => { mode = 'login'; clear(); }}
+            loading={isLoading}
         />
     {:else}
         <ForgotPasswordForm
             onSubmit={handleForgotPassword}
-            onBackToLogin={() => { mode = 'login'; clearMessages(); }}
+            onBackToLogin={() => { mode = 'login'; clear(); }}
+            loading={isLoading}
         />
     {/if}
 </LoginSection>
 
 <style>
     .page-header { text-align: center; margin-bottom: 1.75rem; }
-    .page-logo { display: inline-flex; align-items: center; gap: .4rem; margin-bottom: 1.25rem; }
-    .page-star { font-size: 1.3rem; color: var(--rose, #D94F6B); animation: pulse 3s ease-in-out infinite; }
-    @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.8; } }
-    .page-brand { font-family: 'Cormorant Garamond', serif; font-size: 1.7rem; font-weight: 700; color: var(--ink, #1A1410); letter-spacing: -0.02em; }
-    .page-title { font-family: 'Cormorant Garamond', serif; font-size: 1.55rem; font-weight: 700; color: var(--ink, #1A1410); letter-spacing: -0.01em; margin-bottom: 0.3rem; }
-    .page-sub { font-size: 0.82rem; color: var(--muted, #8A7F79); }
-    .success-message { display: flex; align-items: center; gap: .5rem; background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; font-size: .82rem; padding: .65rem .9rem; border-radius: 10px; margin-bottom: 1rem; }
-    .success-message svg { width: 16px; height: 16px; flex-shrink: 0; }
-    .global-error { display: flex; align-items: center; gap: .5rem; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; font-size: .82rem; padding: .65rem .9rem; border-radius: 10px; margin-bottom: 1rem; animation: shake .35s ease; }
-    .global-error svg { width: 16px; height: 16px; flex-shrink: 0; }
-    @keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
+    .page-logo   { display: inline-flex; align-items: center; gap: .4rem; margin-bottom: 1.25rem; }
+    .page-star   { font-size: 1.3rem; color: var(--rose, #D94F6B); animation: pulse 3s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.2);opacity:.8} }
+    .page-brand  { font-family:'Cormorant Garamond',serif; font-size:1.7rem; font-weight:700; color:var(--ink,#1A1410); letter-spacing:-.02em; }
+    .page-title  { font-family:'Cormorant Garamond',serif; font-size:1.55rem; font-weight:700; color:var(--ink,#1A1410); margin-bottom:.3rem; }
+    .page-sub    { font-size:.82rem; color:var(--muted,#8A7F79); }
+
+    .success-message { display:flex; align-items:center; gap:.5rem; background:#F0FDF4; border:1px solid #BBF7D0; color:#166534; font-size:.82rem; padding:.65rem .9rem; border-radius:10px; margin-bottom:1rem; }
+    .success-message svg { width:16px; height:16px; flex-shrink:0; }
+
+    .global-error { display:flex; align-items:center; gap:.5rem; background:#FEF2F2; border:1px solid #FECACA; color:#991B1B; font-size:.82rem; padding:.65rem .9rem; border-radius:10px; margin-bottom:1rem; animation:shake .35s ease; }
+    .global-error svg { width:16px; height:16px; flex-shrink:0; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
 </style>

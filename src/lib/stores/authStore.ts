@@ -1,57 +1,78 @@
-// src/lib/stores/authStore.ts
-// ✅ Salva { user, token } no localStorage.
-//    O token é lido pelo api.ts e injetado em todas as requisições.
-
+// $lib/stores/authStore.ts
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { goto } from '$app/navigation';
 
 interface User {
     id: string;
+    email: string;
     nome?: string;
-    name?: string;
-    email?: string;
+    token: string;
 }
 
 interface AuthState {
     user: User | null;
-    token: string | null;
     isAuthenticated: boolean;
+    isLoading: boolean;
 }
 
-const STORAGE_KEY_USER  = 'user';
-const STORAGE_KEY_TOKEN = 'token';
+function createAuthStore() {
+    const initial: AuthState = {
+        user: null,
+        isAuthenticated: false,
+        isLoading: true,
+    };
 
-// ── Lê estado inicial do localStorage ────────────────────────────────────
-const loadInitialState = (): AuthState => {
-    if (!browser) return { user: null, token: null, isAuthenticated: false };
-    try {
-        const user  = JSON.parse(localStorage.getItem(STORAGE_KEY_USER)  ?? 'null');
-        const token = localStorage.getItem(STORAGE_KEY_TOKEN);
-        return { user, token, isAuthenticated: !!(user && token) };
-    } catch {
-        return { user: null, token: null, isAuthenticated: false };
+    const { subscribe, set, update } = writable<AuthState>(initial);
+
+    if (browser) {
+        try {
+            const raw = localStorage.getItem('user');
+            if (raw) {
+                const user: User = JSON.parse(raw);
+                set({ user, isAuthenticated: true, isLoading: false });
+            } else {
+                set({ ...initial, isLoading: false });
+            }
+        } catch {
+            localStorage.removeItem('user');
+            set({ ...initial, isLoading: false });
+        }
     }
-};
 
-const { subscribe, set, update } = writable<AuthState>(loadInitialState());
+    return {
+        subscribe,
 
-export const authStore = {
-    subscribe,
+        login(user: User) {
+            if (browser) {
+                localStorage.setItem('user', JSON.stringify(user));
+            }
+            set({ user, isAuthenticated: true, isLoading: false });
+        },
 
-    // ✅ login agora recebe user + token separados
-    login(user: User, token: string) {
-        if (browser) {
-            localStorage.setItem(STORAGE_KEY_USER,  JSON.stringify(user));
-            localStorage.setItem(STORAGE_KEY_TOKEN, token);
-        }
-        set({ user, token, isAuthenticated: true });
-    },
+        async logout() {
+            if (browser) {
+                localStorage.removeItem('user');
+            }
+            set({ user: null, isAuthenticated: false, isLoading: false });
+            await goto('/');
+        },
 
-    logout() {
-        if (browser) {
-            localStorage.removeItem(STORAGE_KEY_USER);
-            localStorage.removeItem(STORAGE_KEY_TOKEN);
-        }
-        set({ user: null, token: null, isAuthenticated: false });
-    },
-};
+        updateUser(partial: Partial<User>) {
+            update(state => {
+                if (!state.user) return state;
+                const updated = { ...state.user, ...partial };
+                if (browser) {
+                    localStorage.setItem('user', JSON.stringify(updated));
+                }
+                return { ...state, user: updated };
+            });
+        },
+
+        setLoading(isLoading: boolean) {
+            update(state => ({ ...state, isLoading }));
+        },
+    };
+}
+
+export const authStore = createAuthStore();

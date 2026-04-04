@@ -1,5 +1,5 @@
 <script lang="ts">
-    import InputField from './InputField.svelte';
+    import InputField from './InputField.svelte.txt';
     import SubmitButton from './SubmitButton.svelte';
 
     interface RegisterData {  email: string; password: string; confirmPassword: string; }
