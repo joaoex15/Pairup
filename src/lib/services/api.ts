@@ -3,12 +3,71 @@
 // ✅ BASE_URL vem de .env (VITE_API_BASE). Nunca hardcode a URL.
 
 import { browser } from '$app/environment';
+import { goto } from '$app/navigation';
 
-const BASE_URL = import.meta.env.VITE_API_BASE as string;
+// ─── Configuração da BASE_URL com fallbacks seguros ─────────────────────────
 
-if (!BASE_URL) {
-    console.error('[api] VITE_API_BASE não definido no .env');
+const getBaseUrl = (): string => {
+    // Prioridade 1: Variável do .env (Vercel/Railway/Cloud)
+    if (import.meta.env.VITE_API_BASE) {
+        return import.meta.env.VITE_API_BASE;
+    }
+    
+    // Prioridade 2: VITE_API_URL (fallback compatível)
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+    
+    // Prioridade 3: URL do deployment atual (Vercel)
+    if (import.meta.env.VERCEL_URL) {
+        const protocol = import.meta.env.VERCEL_ENV === 'production' ? 'https' : 'http';
+        return `${protocol}://${import.meta.env.VERCEL_URL}`;
+    }
+    
+    // Prioridade 4: Ambiente de desenvolvimento local
+    if (import.meta.env.DEV) {
+        console.warn('[api] Usando URL de desenvolvimento local. Configure VITE_API_BASE no .env');
+        return 'http://localhost:8080';
+    }
+    
+    // Prioridade 5: Fallback para produção (Railway)
+    console.warn('[api] Usando URL de fallback. Configure VITE_API_BASE no ambiente.');
+    return 'https://pairup-production-b9ee.up.railway.app';
+};
+
+const BASE_URL = getBaseUrl();
+
+// Log apenas em desenvolvimento
+if (import.meta.env.DEV) {
+    console.log(`[api] API Base URL: ${BASE_URL}`);
 }
+
+// Validação crítica
+if (!BASE_URL || BASE_URL === 'undefined') {
+    console.error('[api] ❌ VITE_API_BASE não definido corretamente no .env');
+    console.error('[api] ⚠️ As requisições podem falhar!');
+}
+
+// ─── Rate Limiting (client-side) ───────────────────────────────────────────
+
+const rateLimiter = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW = 60000; // 1 minuto
+const RATE_LIMIT_MAX = 30; // 30 requisições por minuto
+
+const checkRateLimit = (endpoint: string): boolean => {
+    const now = Date.now();
+    const timestamps = rateLimiter.get(endpoint) || [];
+    const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+    
+    if (recent.length >= RATE_LIMIT_MAX) {
+        console.warn(`[api] Rate limit exceeded for ${endpoint}`);
+        return false;
+    }
+    
+    recent.push(now);
+    rateLimiter.set(endpoint, recent);
+    return true;
+};
 
 // ─── Tipos de resposta ──────────────────────────────────────────────────────
 
@@ -119,9 +178,15 @@ export interface PageResponse<T> {
 function getToken(): string | null {
     if (!browser) return null;
     try {
+        // Tenta buscar do localStorage (authStore salva como 'token')
+        const token = localStorage.getItem('token');
+        if (token) return token;
+        
+        // Fallback: busca dentro do objeto user
         const raw = localStorage.getItem('user');
         if (!raw) return null;
-        return JSON.parse(raw)?.token ?? null;
+        const user = JSON.parse(raw);
+        return user?.token ?? null;
     } catch {
         return null;
     }
@@ -129,21 +194,51 @@ function getToken(): string | null {
 
 function authHeaders(): Record<string, string> {
     const token = getToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    const headers: Record<string, string> = {};
+    
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
 }
 
 async function request<T>(
     endpoint: string,
     options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
+    // Rate limiting check
+    if (!checkRateLimit(endpoint)) {
+        return { error: 'Muitas requisições. Aguarde um momento.', status: 429 };
+    }
+    
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
         ...authHeaders(),
         ...(options.headers as Record<string, string> ?? {}),
     };
 
     try {
-        const res = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
+        const url = `${BASE_URL}${endpoint}`;
+        
+        const res = await fetch(url, { 
+            ...options, 
+            headers,
+            credentials: 'include' // Importante para cookies de sessão
+        });
+
+        // Token expirado → logout automático
+        if (res.status === 401 && browser) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            sessionStorage.clear();
+            
+            // Evita redirect loop
+            if (!window.location.pathname.includes('/auth') && window.location.pathname !== '/') {
+                goto('/');
+            }
+        }
 
         // Respostas sem corpo (204, 205)
         if (res.status === 204 || res.status === 205) {
@@ -152,7 +247,11 @@ async function request<T>(
 
         const text = await res.text();
         let body: unknown;
-        try { body = JSON.parse(text); } catch { body = text; }
+        try { 
+            body = JSON.parse(text); 
+        } catch { 
+            body = text; 
+        }
 
         if (!res.ok) {
             const msg = typeof body === 'string'
@@ -163,7 +262,14 @@ async function request<T>(
 
         return { data: body as T, status: res.status };
     } catch (err) {
-        return { error: err instanceof Error ? err.message : 'Erro de rede' };
+        console.error(`[api] Request failed: ${endpoint}`, err);
+        
+        // Erro de rede
+        if (err instanceof TypeError && err.message === 'Failed to fetch') {
+            return { error: 'Erro de conexão. Verifique sua internet.', status: 0 };
+        }
+        
+        return { error: err instanceof Error ? err.message : 'Erro inesperado', status: 0 };
     }
 }
 
@@ -172,12 +278,24 @@ async function requestMultipart<T>(
     endpoint: string,
     body: FormData
 ): Promise<ApiResponse<T>> {
+    if (!checkRateLimit(endpoint)) {
+        return { error: 'Muitas requisições. Aguarde um momento.', status: 429 };
+    }
+    
     try {
         const res = await fetch(`${BASE_URL}${endpoint}`, {
             method: 'POST',
             headers: authHeaders(),
             body,
         });
+
+        if (res.status === 401 && browser) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            if (!window.location.pathname.includes('/auth')) {
+                goto('/');
+            }
+        }
 
         if (!res.ok) {
             const text = await res.text();
@@ -187,7 +305,8 @@ async function requestMultipart<T>(
         const data = await res.json();
         return { data, status: res.status };
     } catch (err) {
-        return { error: err instanceof Error ? err.message : 'Erro de rede' };
+        console.error(`[api] Upload failed: ${endpoint}`, err);
+        return { error: err instanceof Error ? err.message : 'Erro no upload', status: 0 };
     }
 }
 
@@ -206,8 +325,11 @@ export const apiRegister = (user: { nome: string; email: string; password: strin
     });
 
 /** Rota não existe no backend — retorna erro controlado sem quebrar. */
-export const apiForgotPassword = (_email: string): Promise<ApiResponse> =>
-    Promise.resolve({ error: 'Recuperação de senha não disponível no momento.' });
+export const apiForgotPassword = (email: string): Promise<ApiResponse> =>
+    request('/users/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+    });
 
 export const apiGetMe = () =>
     request<UserResponse>('/users/me');
@@ -303,8 +425,11 @@ export const apiDeleteImagem = (imagemId: string) =>
  * Retorna a URL pública do proxy (sem fazer download do blob).
  * Use direto no src da <img>.
  */
-export const apiImagemProxyUrl = (publicId: string): string =>
-    `${BASE_URL}/api/imagens/proxy/${publicId}?token=${getToken() ?? ''}`;
+export const apiImagemProxyUrl = (publicId: string): string => {
+    const token = getToken();
+    const base = `${BASE_URL}/api/imagens/proxy/${publicId}`;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+};
 
 // ─── Tags ───────────────────────────────────────────────────────────────────
 
@@ -318,3 +443,7 @@ export const apiGetTagsAtivas = () =>
 
 export const getGoogleOAuthUrl = (): string =>
     `${BASE_URL}/oauth2/authorization/google`;
+
+// ─── Export da URL base para uso em outros lugares ─────────────────────────
+
+export const getApiBaseUrl = (): string => BASE_URL;
