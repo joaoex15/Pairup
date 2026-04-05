@@ -1,3 +1,4 @@
+<!-- $lib/components/login/LoginSection.svelte -->
 <script lang="ts">
     export let title: string = '';
 </script>
@@ -11,28 +12,26 @@
 
 <style>
     .card {
-        width: 100%;
-        background: var(--card-bg, rgba(255,255,255,0.72));
-        backdrop-filter: blur(18px) saturate(1.4);
-        -webkit-backdrop-filter: blur(18px) saturate(1.4);
-        border: 1px solid var(--border, rgba(201,169,110,0.25));
-        border-radius: 20px;
-        box-shadow: var(--shadow, 0 8px 48px rgba(217,79,107,0.10));
-        padding: 2rem 2rem 1.75rem;
-        animation: card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+        width:100%;
+        background:rgba(255,255,255,.82);
+        backdrop-filter:blur(18px) saturate(1.3);
+        -webkit-backdrop-filter:blur(18px) saturate(1.3);
+        border:1px solid var(--border,rgba(79,70,229,.15));
+        border-radius:20px;
+        box-shadow:0 8px 48px rgba(79,70,229,.1), 0 2px 12px rgba(15,22,36,.06);
+        padding:2rem 2rem 1.75rem;
+        animation:card-in .5s cubic-bezier(.22,1,.36,1) both;
     }
     @keyframes card-in {
-        from { opacity: 0; transform: translateY(18px) scale(0.98); }
-        to   { opacity: 1; transform: translateY(0)   scale(1); }
+        from { opacity:0; transform:translateY(18px) scale(.98); }
+        to   { opacity:1; transform:translateY(0) scale(1); }
     }
 
     .card-title {
-        font-family: 'Cormorant Garamond', serif;
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--ink, #1A1410);
-        text-align: center;
-        margin-bottom: 1.25rem;
-        letter-spacing: -0.01em;
+        font-family:'Plus Jakarta Sans',sans-serif;
+        font-size:1.4rem; font-weight:800;
+        color:var(--ink,#0F1624);
+        text-align:center; margin-bottom:1.25rem;
+        letter-spacing:-.02em;
     }
 </style>

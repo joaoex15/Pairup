@@ -5,7 +5,7 @@
     import {
         apiGetMyProfile, apiGetMyMatches, apiGetPessoa,
         apiGetMatchRedesSociais, apiDesfazerMatch,
-        apiGetLikesDados, apiGetPessoas, apiImagemProxyUrl,
+        apiGetLikesDados,
         type PessoaResponse, type RedesSociaisResponse
     } from '$lib/services/api';
     import { handleApiError } from '$lib/utils/errorUtils';
@@ -38,17 +38,12 @@
     let likeCount  = 0;
     let minhaPessoaId = '';
 
-    // Tenta montar a URL da foto de perfil via proxy.
-    // O PessoaPerfilDTO não traz publicId diretamente,
-    // então exibimos inicial quando não há publicId.
     const fotoUrl = (_pessoaId: string): string => '';
 
     onMount(async () => {
         loading = true;
         globalError = '';
-
         try {
-            // 1. ID do usuário logado via /pessoas/me
             const meRes = await apiGetMyProfile();
             if (!meRes.data) {
                 globalError = 'Perfil não encontrado. Complete seu cadastro.';
@@ -57,24 +52,19 @@
             }
             minhaPessoaId = meRes.data.id;
 
-            // 2. Matches
             const matchRes = await apiGetMyMatches(0, 50);
             if (matchRes.data) {
                 const ativos = (matchRes.data.content ?? []).filter(m => m.ativo);
                 matchCount = ativos.length;
-
                 matches = await Promise.all(
                     ativos.map(async m => {
                         const outroId = m.pessoaId1 === minhaPessoaId ? m.pessoaId2 : m.pessoaId1;
-
                         const [pesRes, redesRes] = await Promise.all([
                             apiGetPessoa(outroId),
                             apiGetMatchRedesSociais(m.id),
                         ]);
-
                         const pessoa: PessoaResponse | undefined = pesRes.data;
                         const redes:  RedesSociaisResponse | undefined = redesRes.data;
-
                         return {
                             matchId:   m.id,
                             pessoaId:  outroId,
@@ -89,12 +79,10 @@
                 );
             }
 
-            // 3. Likes dados
             const likesRes = await apiGetLikesDados(0, 50);
             if (likesRes.data) {
                 const ativos = (likesRes.data.content ?? []).filter(l => l.ativo);
                 likeCount = ativos.length;
-
                 likesDados = await Promise.all(
                     ativos.map(async l => {
                         const pesRes = await apiGetPessoa(l.pessoaDestinoId);
@@ -133,8 +121,8 @@
             </svg>
         </button>
         <div class="header-logo">
-            <span class="header-star">✦</span>
-            <span class="header-brand">PairUp</span>
+            <span class="header-icon">🎓</span>
+            <span class="header-brand">UNeSe</span>
         </div>
         <div style="width:36px"></div>
     </header>
@@ -171,7 +159,7 @@
         {:else if activeTab === 'matches'}
             {#if matches.length === 0}
                 <div class="empty-state">
-                    <div class="empty-icon">💘</div>
+                    <div class="empty-icon">💙</div>
                     <h2 class="empty-title">Nenhum match ainda</h2>
                     <p class="empty-sub">Continue dando likes para encontrar sua conexão.</p>
                     <button class="btn-primary" on:click={() => goto('/home')}>Explorar pessoas</button>
@@ -244,7 +232,7 @@
                                 {:else}
                                     <div class="like-placeholder"><span>{like.nome.charAt(0).toUpperCase()}</span></div>
                                 {/if}
-                                <div class="like-badge">❤️ Like</div>
+                                <div class="like-badge">💙 Like</div>
                             </div>
                             <div class="like-info">
                                 <p class="like-name">{like.nome}</p>
@@ -259,62 +247,62 @@
 </div>
 
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@300;400;500&display=swap');
-    :global(body){background:var(--cream,#FAF7F2);font-family:'DM Sans',sans-serif;}
-    .page{min-height:100vh;display:flex;flex-direction:column;background:var(--cream,#FAF7F2);}
-    .header{display:flex;justify-content:space-between;align-items:center;padding:.9rem 1.25rem;background:rgba(250,247,242,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border,rgba(201,169,110,.22));position:sticky;top:0;z-index:10;}
-    .back-btn{background:none;border:none;cursor:pointer;color:var(--muted,#8A7F79);padding:.3rem;transition:color .2s;border-radius:8px;}
-    .back-btn:hover{color:var(--rose,#D94F6B);}
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    :global(body){background:var(--bg,#F4F6FB);font-family:'Plus Jakarta Sans',sans-serif;}
+    .page{min-height:100vh;display:flex;flex-direction:column;background:var(--bg,#F4F6FB);}
+    .header{display:flex;justify-content:space-between;align-items:center;padding:.9rem 1.25rem;background:rgba(244,246,251,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border,rgba(79,70,229,.15));position:sticky;top:0;z-index:10;}
+    .back-btn{background:none;border:none;cursor:pointer;color:var(--muted,#64748B);padding:.3rem;transition:color .2s;border-radius:8px;}
+    .back-btn:hover{color:var(--primary,#4F46E5);}
     .back-btn svg{width:22px;height:22px;display:block;}
-    .header-logo{display:flex;align-items:center;gap:.35rem;}
-    .header-star{font-size:1.1rem;color:var(--rose,#D94F6B);animation:pk 3s ease-in-out infinite;}
-    @keyframes pk{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
-    .header-brand{font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:700;color:var(--ink,#1A1410);letter-spacing:-.02em;}
-    .tabs-bar{display:flex;background:#fff;border-bottom:1px solid rgba(138,127,121,.12);position:sticky;top:57px;z-index:9;}
-    .tab{flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.85rem .5rem;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:500;color:var(--muted,#8A7F79);border-bottom:2px solid transparent;transition:color .2s,border-color .2s;}
+    .header-logo{display:flex;align-items:center;gap:.4rem;}
+    .header-icon{font-size:1.2rem;animation:pk 3s ease-in-out infinite;}
+    @keyframes pk{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+    .header-brand{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.4rem;font-weight:800;color:var(--ink,#0F1624);letter-spacing:-.03em;}
+    .tabs-bar{display:flex;background:#fff;border-bottom:1px solid rgba(100,116,139,.12);position:sticky;top:57px;z-index:9;}
+    .tab{flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.85rem .5rem;border:none;background:none;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:.82rem;font-weight:500;color:var(--muted,#64748B);border-bottom:2px solid transparent;transition:color .2s,border-color .2s;}
     .tab svg{width:16px;height:16px;flex-shrink:0;}
-    .tab.active{color:var(--rose,#D94F6B);border-bottom-color:var(--rose,#D94F6B);}
-    .tab-count{background:rgba(217,79,107,.12);color:var(--rose,#D94F6B);font-size:.65rem;font-weight:600;padding:.15rem .45rem;border-radius:20px;min-width:20px;text-align:center;}
-    .tab.active .tab-count{background:var(--rose,#D94F6B);color:#fff;}
+    .tab.active{color:var(--primary,#4F46E5);border-bottom-color:var(--primary,#4F46E5);}
+    .tab-count{background:rgba(79,70,229,.12);color:var(--primary,#4F46E5);font-size:.65rem;font-weight:600;padding:.15rem .45rem;border-radius:20px;min-width:20px;text-align:center;}
+    .tab.active .tab-count{background:var(--primary,#4F46E5);color:#fff;}
     .main{flex:1;padding:1.25rem 1rem 2rem;max-width:480px;margin:0 auto;width:100%;}
     .loading-wrap{display:flex;flex-direction:column;align-items:center;gap:1rem;padding:4rem 0;}
-    .loading-ring{width:40px;height:40px;border:3px solid rgba(217,79,107,.15);border-top-color:var(--rose,#D94F6B);border-radius:50%;animation:spin .8s linear infinite;}
+    .loading-ring{width:40px;height:40px;border:3px solid rgba(79,70,229,.15);border-top-color:var(--primary,#4F46E5);border-radius:50%;animation:spin .8s linear infinite;}
     @keyframes spin{to{transform:rotate(360deg)}}
-    .loading-text{font-size:.8rem;color:var(--muted,#8A7F79);}
+    .loading-text{font-size:.8rem;color:var(--muted,#64748B);}
     .empty-state,.error-state{display:flex;flex-direction:column;align-items:center;gap:.75rem;padding:4rem 1rem;text-align:center;}
     .empty-icon{font-size:2.8rem;}
-    .empty-title{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:700;color:var(--ink,#1A1410);}
-    .empty-sub{font-size:.8rem;color:var(--muted,#8A7F79);max-width:220px;}
-    .btn-primary{margin-top:.5rem;padding:.7rem 1.6rem;border:none;border-radius:12px;background:linear-gradient(135deg,var(--rose,#D94F6B),#C0394F);color:#fff;font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(217,79,107,.3);transition:opacity .2s;}
+    .empty-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:700;color:var(--ink,#0F1624);}
+    .empty-sub{font-size:.8rem;color:var(--muted,#64748B);max-width:220px;}
+    .btn-primary{margin-top:.5rem;padding:.7rem 1.6rem;border:none;border-radius:12px;background:linear-gradient(135deg,var(--primary,#4F46E5),var(--accent,#7C3AED));color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(79,70,229,.3);transition:opacity .2s;}
     .btn-primary:hover{opacity:.88;}
     .match-list{display:flex;flex-direction:column;gap:.85rem;}
-    .match-card{background:rgba(255,255,255,.82);backdrop-filter:blur(10px);border:1px solid var(--border,rgba(201,169,110,.22));border-radius:16px;box-shadow:0 2px 14px rgba(26,20,16,.05);overflow:hidden;animation:fade-up .3s ease both;}
+    .match-card{background:rgba(255,255,255,.9);backdrop-filter:blur(10px);border:1px solid var(--border,rgba(79,70,229,.15));border-radius:16px;box-shadow:0 2px 14px rgba(15,22,36,.05);overflow:hidden;animation:fade-up .3s ease both;}
     @keyframes fade-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
     .match-top{display:flex;align-items:center;gap:.85rem;padding:.9rem 1rem;}
-    .match-avatar{width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid var(--rose,#D94F6B);background:linear-gradient(135deg,#F4B8C8,#D94F6B);display:flex;align-items:center;justify-content:center;}
+    .match-avatar{width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid var(--primary,#4F46E5);background:linear-gradient(135deg,#818CF8,#4F46E5);display:flex;align-items:center;justify-content:center;}
     .match-avatar img{width:100%;height:100%;object-fit:cover;}
-    .avatar-initial{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:700;color:#fff;}
+    .avatar-initial{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:800;color:#fff;}
     .match-info{flex:1;min-width:0;}
-    .match-name{font-size:.92rem;font-weight:500;color:var(--ink,#1A1410);}
-    .match-meta{font-size:.72rem;color:var(--muted,#8A7F79);margin-top:.1rem;}
-    .unmatch-btn{background:none;border:none;cursor:pointer;color:rgba(138,127,121,.4);padding:.3rem;border-radius:8px;transition:color .2s,background .2s;flex-shrink:0;}
+    .match-name{font-size:.92rem;font-weight:600;color:var(--ink,#0F1624);}
+    .match-meta{font-size:.72rem;color:var(--muted,#64748B);margin-top:.1rem;}
+    .unmatch-btn{background:none;border:none;cursor:pointer;color:rgba(100,116,139,.4);padding:.3rem;border-radius:8px;transition:color .2s,background .2s;flex-shrink:0;}
     .unmatch-btn:hover{color:#ef4444;background:rgba(239,68,68,.06);}
     .unmatch-btn svg{width:16px;height:16px;display:block;}
-    .contact-row{display:flex;flex-wrap:wrap;gap:.45rem;padding:.65rem 1rem .85rem;border-top:1px solid rgba(138,127,121,.08);}
-    .contact-btn{display:inline-flex;align-items:center;gap:.35rem;padding:.32rem .85rem;border-radius:20px;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:500;text-decoration:none;transition:opacity .2s,transform .15s;}
+    .contact-row{display:flex;flex-wrap:wrap;gap:.45rem;padding:.65rem 1rem .85rem;border-top:1px solid rgba(100,116,139,.08);}
+    .contact-btn{display:inline-flex;align-items:center;gap:.35rem;padding:.32rem .85rem;border-radius:20px;font-family:'Plus Jakarta Sans',sans-serif;font-size:.72rem;font-weight:500;text-decoration:none;transition:opacity .2s,transform .15s;}
     .contact-btn:hover{opacity:.88;transform:translateY(-1px);}
     .contact-btn svg{width:12px;height:12px;flex-shrink:0;}
     .contact-ig{background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);color:#fff;}
     .contact-wa{background:#25D366;color:#fff;}
     .contact-tg{background:#0088cc;color:#fff;}
     .likes-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
-    .like-card{background:rgba(255,255,255,.82);border:1px solid var(--border,rgba(201,169,110,.22));border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(26,20,16,.05);animation:fade-up .3s ease both;}
-    .like-photo{position:relative;aspect-ratio:1;background:linear-gradient(135deg,#F4B8C8,#D94F6B);}
+    .like-card{background:rgba(255,255,255,.9);border:1px solid var(--border,rgba(79,70,229,.15));border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(15,22,36,.05);animation:fade-up .3s ease both;}
+    .like-photo{position:relative;aspect-ratio:1;background:linear-gradient(135deg,#818CF8,#4F46E5);}
     .like-photo img{width:100%;height:100%;object-fit:cover;display:block;}
     .like-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
-    .like-placeholder span{font-family:'Cormorant Garamond',serif;font-size:2.5rem;font-weight:700;color:rgba(255,255,255,.8);}
-    .like-badge{position:absolute;top:.6rem;right:.6rem;background:var(--rose,#D94F6B);color:#fff;font-size:.62rem;font-weight:600;padding:.2rem .55rem;border-radius:20px;}
+    .like-placeholder span{font-family:'Plus Jakarta Sans',sans-serif;font-size:2.5rem;font-weight:800;color:rgba(255,255,255,.8);}
+    .like-badge{position:absolute;top:.6rem;right:.6rem;background:var(--primary,#4F46E5);color:#fff;font-size:.62rem;font-weight:600;padding:.2rem .55rem;border-radius:20px;}
     .like-info{padding:.65rem .75rem;}
-    .like-name{font-size:.82rem;font-weight:500;color:var(--ink,#1A1410);}
-    .like-meta{font-size:.7rem;color:var(--muted,#8A7F79);margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .like-name{font-size:.82rem;font-weight:600;color:var(--ink,#0F1624);}
+    .like-meta{font-size:.7rem;color:var(--muted,#64748B);margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 </style>

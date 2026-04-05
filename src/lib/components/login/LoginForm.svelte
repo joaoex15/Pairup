@@ -21,13 +21,12 @@
         e.preventDefault();
         errors = {};
 
-        if (!email.trim())             errors.email    = 'E-mail obrigatório';
+        if (!email.trim())              errors.email    = 'E-mail obrigatório';
         else if (!validateEmail(email)) errors.email    = 'E-mail inválido';
-        if (!password)                 errors.password = 'Senha obrigatória';
-        else if (password.length < 6)  errors.password = 'Mínimo 6 caracteres';
+        if (!password)                  errors.password = 'Senha obrigatória';
+        else if (password.length < 6)   errors.password = 'Mínimo 6 caracteres';
 
         if (Object.keys(errors).length > 0) return;
-
         await onSubmit({ email: email.trim(), password });
     };
 
@@ -52,6 +51,12 @@
 <style>
     form { width:100%; }
     .forgot-row { display:flex; justify-content:flex-end; margin-top:-.3rem; margin-bottom:.25rem; }
-    .link-btn   { background:none; border:none; font-family:'DM Sans',sans-serif; font-size:.78rem; color:var(--gold,#C9A96E); cursor:pointer; padding:0; transition:color .2s; }
-    .link-btn:hover { color:var(--rose,#D94F6B); }
+    .link-btn {
+        background:none; border:none;
+        font-family:'Plus Jakarta Sans',sans-serif;
+        font-size:.78rem; font-weight:600;
+        color:var(--primary,#4F46E5);
+        cursor:pointer; padding:0; transition:color .2s;
+    }
+    .link-btn:hover { color:var(--accent,#7C3AED); }
 </style>
