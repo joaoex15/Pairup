@@ -115,21 +115,24 @@
 
         if (Object.keys(errors).length > 0) { saving = false; return; }
 
-        const payload: PessoaPayload = {
-            id:        pessoaId,
-            nome:      formData.nome,
-            email:     formData.email,
-            curso:     formData.curso,
-            dataNasc:  formData.dataNasc,
-            genero:    formData.genero,
-            interesse: formData.interesse,
-            descricao: formData.descricao,
-            instagram: formData.instagram,
-            whatsapp:  formData.whatsapp,
-            telegram:  formData.telegram,
-            ativo:     true,
-            tags:      selectedTags.map(t => ({ id: t.id, nome: t.nome })),
-        };
+       // src/routes/profile/+page.svelte - linha ~120
+            const payload: PessoaPayload = {
+                id:        pessoaId,
+                nome:      formData.nome,
+                email:     formData.email,
+                curso:     formData.curso,
+                dataNasc:  formData.dataNasc,
+                genero:    formData.genero,
+                interesse: formData.interesse,
+                descricao: formData.descricao,
+                instagram: formData.instagram,
+                whatsapp:  formData.whatsapp,
+                telegram:  formData.telegram,
+                ativo:     true,
+                tags:      selectedTags.map(t => ({ id: t.id, nome: t.nome })),
+                // ✅ ADICIONAR ESTA LINHA
+                cienciaResponsabilidade: true,  // Mantém o flag como true
+            };
 
         try {
             const res = await apiUpdateMyProfile(payload);
