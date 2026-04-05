@@ -1,6 +1,3 @@
-// $lib/services/api.ts
-// ✅ ÚNICO arquivo de requisições — não faça fetch em nenhum outro lugar.
-// ✅ BASE_URL vem de .env (VITE_API_BASE). Nunca hardcode a URL.
 
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
@@ -62,7 +59,7 @@ const checkRateLimit = (endpoint: string): boolean => {
     return true;
 };
 
-// ─── Tipos de resposta ──────────────────────────────────────────────────────
+// ─── Tipos de resposta (ATUALIZADOS conforme backend) ───────────────────────
 
 export interface ApiResponse<T = unknown> {
     data?: T;
@@ -83,6 +80,26 @@ export interface UserResponse {
     provider?: string;
 }
 
+export interface TagResponse {
+    id: string;
+    nome: string;
+    descricao?: string;
+    categoria: string;
+    ativa: boolean;
+}
+
+export interface ImagemResponse {
+    id: string;
+    url: string;
+    publicId: string;
+    folderPath?: string;
+    perfil: boolean;
+    dataUpload?: string;
+    tamanhoBytes?: number;
+    mimeType?: string;
+    ativa?: boolean;
+}
+
 export interface PessoaResponse {
     id: string;
     nome: string;
@@ -98,7 +115,28 @@ export interface PessoaResponse {
     ativo?: boolean;
     cienciaResponsabilidade?: boolean;
     usuarioId?: string;
-    tags?: TagResponse[];
+    tags?: string[]; // Agora é List<String> no DTO
+    imagens?: ImagemResponse[];
+    fotoPerfilUrl?: string;
+}
+
+export interface PessoaCompletaResponse {
+    id: string;
+    nome: string;
+    email: string;
+    curso?: string;
+    dataNasc?: string;
+    genero?: 'MASCULINO' | 'FEMININO' | 'NAO_BINARIO' | 'OUTRO';
+    interesse?: 'HOMENS' | 'MULHERES' | 'TODOS' | 'NAO_DEFINIDO';
+    descricao?: string;
+    instagram?: string;
+    whatsapp?: string;
+    telegram?: string;
+    cienciaResponsabilidade?: boolean;
+    tags?: string[];
+    imagens?: ImagemResponse[];
+    fotoPerfilUrl?: string;
+    perfilCompleto?: boolean;
 }
 
 export interface PessoaPayload {
@@ -113,24 +151,8 @@ export interface PessoaPayload {
     whatsapp?: string;
     telegram?: string;
     ativo?: boolean;
-    usuarioId?: string;
-    tags?: { id: string; nome: string }[];
-    id?: string;
-}
-
-export interface TagResponse {
-    id: string;
-    nome: string;
-    descricao?: string;
-    categoria: string;
-    ativa: boolean;
-}
-
-export interface ImagemResponse {
-    id: string;
-    url: string;
-    publicId: string;
-    perfil: boolean;
+    cienciaResponsabilidade?: boolean;
+    tags?: string[]; // Agora é array de strings (nomes das tags)
 }
 
 export interface MatchResponse {
@@ -141,6 +163,7 @@ export interface MatchResponse {
 }
 
 export interface RedesSociaisResponse {
+    id?: string;
     instagram?: string;
     whatsapp?: string;
     telegram?: string;
@@ -194,7 +217,6 @@ function authHeaders(): Record<string, string> {
     return headers;
 }
 
-// ⚠️ CORS FIX: Removido header 'X-Requested-With' que causava problema
 async function request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -203,7 +225,6 @@ async function request<T>(
         return { error: 'Muitas requisições. Aguarde um momento.', status: 429 };
     }
     
-    // Headers básicos - sem X-Requested-With para evitar CORS
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...authHeaders(),
@@ -216,8 +237,8 @@ async function request<T>(
         const res = await fetch(url, { 
             ...options, 
             headers,
-            mode: 'cors', // Explicitamente CORS
-            credentials: 'omit' // Mude para 'include' se precisar de cookies
+            mode: 'cors',
+            credentials: 'omit'
         });
 
         if (res.status === 401 && browser) {
@@ -261,7 +282,6 @@ async function request<T>(
     }
 }
 
-// Multipart sem headers problemáticos
 async function requestMultipart<T>(
     endpoint: string,
     body: FormData
@@ -273,7 +293,7 @@ async function requestMultipart<T>(
     try {
         const res = await fetch(`${BASE_URL}${endpoint}`, {
             method: 'POST',
-            headers: authHeaders(), // Sem Content-Type (FormData define)
+            headers: authHeaders(),
             mode: 'cors',
             credentials: 'omit',
             body,
@@ -314,12 +334,6 @@ export const apiRegister = (user: { nome: string; email: string; password: strin
         body: JSON.stringify(user),
     });
 
-export const apiForgotPassword = (email: string): Promise<ApiResponse> =>
-    request('/users/forgot-password', {
-        method: 'POST',
-        body: JSON.stringify({ email }),
-    });
-
 export const apiGetMe = () =>
     request<UserResponse>('/users/me');
 
@@ -332,7 +346,7 @@ export const apiUpdateMe = (user: Partial<UserResponse>) =>
 export const apiDeleteMe = () =>
     request('/users/me', { method: 'DELETE' });
 
-// ─── Pessoas ────────────────────────────────────────────────────────────────
+// ─── Pessoas (ATUALIZADO) ───────────────────────────────────────────────────
 
 export const apiGetPessoas = (params?: {
     interesse?: string;
@@ -342,7 +356,7 @@ export const apiGetPessoas = (params?: {
 }) => {
     const qs = new URLSearchParams();
     if (params?.interesse) qs.set('interesse', params.interesse);
-    if (params?.genero)    qs.set('genero',    params.genero);
+    if (params?.genero)    qs.set('genero', params.genero);
     qs.set('page', String(params?.page ?? 0));
     qs.set('size', String(params?.size ?? 50));
     return request<PageResponse<PessoaResponse>>(`/pessoas?${qs}`);
@@ -352,7 +366,7 @@ export const apiGetPessoa = (id: string) =>
     request<PessoaResponse>(`/pessoas/${id}/perfil`);
 
 export const apiGetMyProfile = () =>
-    request<PessoaResponse>('/pessoas/me');
+    request<PessoaCompletaResponse>('/pessoas/me');
 
 export const apiCreatePessoa = (pessoa: PessoaPayload) =>
     request<PessoaResponse>('/pessoas', {
@@ -394,22 +408,24 @@ export const apiGetLikesDados = (page = 0, size = 20) =>
 export const apiGetLikesRecebidos = (page = 0, size = 20) =>
     request<PageResponse<LikeResponse>>(`/likes/recebidos?page=${page}&size=${size}`);
 
-// ─── Imagens ────────────────────────────────────────────────────────────────
+// ─── Imagens (ATUALIZADO) ───────────────────────────────────────────────────
 
 export const apiUploadImagem = (file: File, perfil: boolean) => {
     const form = new FormData();
     form.append('file', file);
     form.append('perfil', String(perfil));
-    return requestMultipart<ImagemResponse>('/imagens/upload', form);
+    return requestMultipart<ImagemResponse>('/api/imagens/upload', form);
 };
 
 export const apiDeleteImagem = (imagemId: string) =>
-    request(`/imagens/${imagemId}`, { method: 'DELETE' });
+    request(`/api/imagens/${imagemId}`, { method: 'DELETE' });
 
-export const apiImagemProxyUrl = (publicId: string): string => {
-    const token = getToken();
+export const apiListMinhasImagens = () =>
+    request<ImagemResponse[]>('/api/imagens/minhas-imagens');
+
+export const apiGetImagemProxyUrl = (publicId: string): string => {
     const base = `${BASE_URL}/api/imagens/proxy/${publicId}`;
-    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+    return base; // O token vai no header Authorization, não na URL
 };
 
 // ─── Tags ───────────────────────────────────────────────────────────────────
@@ -420,9 +436,49 @@ export const apiGetTags = () =>
 export const apiGetTagsAtivas = () =>
     request<TagResponse[]>('/tags/ativas');
 
-// ─── OAuth2 ─────────────────────────────────────────────────────────────────
+// ─── OAuth2 (CORRIGIDO - usa redirect do navegador) ─────────────────────────
 
-export const getGoogleOAuthUrl = (): string =>
-    `${BASE_URL}/oauth2/authorization/google`;
+/**
+ * ✅ CORRETO: Redireciona o navegador para o Google OAuth
+ * ❌ NÃO use fetch() com esta URL - isso causa erro CORS
+ */
+export const redirectToGoogleOAuth = (): void => {
+    if (!browser) return;
+    const url = `${BASE_URL}/oauth2/authorization/google`;
+    window.location.href = url;
+};
+
+/**
+ * Processa o callback OAuth após redirect
+ * O backend redireciona para /oauth2/redirect com o token na URL
+ */
+export const handleOAuthRedirect = (): void => {
+    if (!browser) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const error = urlParams.get('error');
+    
+    if (error) {
+        console.error('[OAuth] Erro:', error);
+        localStorage.removeItem('token');
+        goto('/auth?error=' + encodeURIComponent(error));
+        return;
+    }
+    
+    if (token) {
+        localStorage.setItem('token', token);
+        // Limpa a URL sem recarregar a página
+        window.history.replaceState({}, document.title, window.location.pathname);
+        goto('/app');
+        return;
+    }
+    
+    // Se não tem token nem erro, verifica se está na página de callback
+    if (window.location.pathname.includes('/oauth2/redirect')) {
+        console.warn('[OAuth] Callback sem token');
+        goto('/auth?error=oauth_failed');
+    }
+};
 
 export const getApiBaseUrl = (): string => BASE_URL;

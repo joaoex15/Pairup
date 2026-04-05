@@ -1,5 +1,7 @@
 <!-- $lib/components/FotosUploader.svelte -->
 <script lang="ts">
+    import { createEventDispatcher } from 'svelte';
+
     export let fotos: Array<{
         id: string;
         url: string;
@@ -8,6 +10,11 @@
     }> = [];
 
     export let errors: Record<string, string> = {};
+    export let disabled = false;
+    export let maxFotos = 6;
+    export let maxSizeMB = 5;
+
+    const dispatch = createEventDispatcher();
 
     let uploadLoading = false;
     let uploadError = '';
@@ -17,31 +24,49 @@
         const files = Array.from(input.files || []);
         if (files.length === 0) return;
 
+        // Verifica limite máximo
+        if (fotos.length + files.length > maxFotos) {
+            uploadError = `Máximo de ${maxFotos} fotos permitidas`;
+            input.value = '';
+            return;
+        }
+
         uploadLoading = true;
         uploadError = '';
 
+        const novosUploads: Array<{ foto: typeof fotos[0]; file: File }> = [];
+
         for (const file of files) {
+            // Validação de tipo
             if (!file.type.startsWith('image/')) {
                 uploadError = 'Apenas imagens são permitidas';
                 continue;
             }
-            if (file.size > 5 * 1024 * 1024) {
-                uploadError = 'Imagem muito grande (máx 5MB)';
+
+            // Validação de tamanho
+            if (file.size > maxSizeMB * 1024 * 1024) {
+                uploadError = `Imagem muito grande (máx ${maxSizeMB}MB)`;
                 continue;
             }
 
             const localUrl = URL.createObjectURL(file);
+            const isPrimeiraFoto = fotos.length === 0 && novosUploads.length === 0;
+
             const novaFoto = {
-                id: `temp-${Date.now()}-${Math.random()}`,
+                id: `temp-${Date.now()}-${Math.random()}-${file.name}`,
                 url: localUrl,
                 file,
-                principal: fotos.length === 0,
+                principal: isPrimeiraFoto,
             };
-            fotos = [...fotos, novaFoto];
 
-            if (fotos.length === 1) {
-                fotos = fotos.map(f => ({ ...f, principal: f.id === novaFoto.id }));
-            }
+            novosUploads.push({ foto: novaFoto, file });
+        }
+
+        if (novosUploads.length > 0) {
+            fotos = [...fotos, ...novosUploads.map(u => u.foto)];
+
+            // Dispara evento para upload real no componente pai
+            dispatch('fotos-selecionadas', novosUploads.map(u => u.file));
         }
 
         uploadLoading = false;
@@ -49,42 +74,91 @@
     };
 
     const setPrincipal = (id: string) => {
+        if (disabled) return;
         fotos = fotos.map(f => ({ ...f, principal: f.id === id }));
+        dispatch('principal-alterada', id);
     };
 
     const removerFoto = (id: string) => {
+        if (disabled) return;
+
         const removida = fotos.find(f => f.id === id);
-        fotos = fotos.filter(f => f.id !== id);
-        if (removida?.principal && fotos.length > 0) {
-            fotos = fotos.map((f, i) => ({ ...f, principal: i === 0 }));
-        }
+        
+        // Revoga URL blob para evitar memory leak
         if (removida?.url?.startsWith('blob:')) {
             URL.revokeObjectURL(removida.url);
         }
+
+        fotos = fotos.filter(f => f.id !== id);
+
+        // Se removeu a foto principal e ainda há fotos, define a primeira como principal
+        if (removida?.principal && fotos.length > 0) {
+            fotos = fotos.map((f, i) => ({ ...f, principal: i === 0 }));
+        }
+
+        dispatch('foto-removida', id);
     };
+
+    // Cleanup das URLs blob quando componente for destruído
+    function cleanupBlobUrls() {
+        fotos.forEach(foto => {
+            if (foto.url?.startsWith('blob:')) {
+                URL.revokeObjectURL(foto.url);
+            }
+        });
+    }
+
+    $: {
+        // Limpa erro quando fotos mudam
+        if (uploadError && fotos.length > 0) {
+            uploadError = '';
+        }
+    }
 </script>
+
+<svelte:window on:beforeunload={cleanupBlobUrls} />
 
 <div class="fotos-uploader">
     {#if uploadError}
-        <div class="upload-error">{uploadError}</div>
+        <div class="upload-error" role="alert">{uploadError}</div>
     {/if}
 
     <div class="fotos-grid">
         {#each fotos as foto (foto.id)}
             <div class="foto-item" class:principal={foto.principal}>
-                <img src={foto.url} alt="Foto" />
+                <img 
+                    src={foto.url} 
+                    alt="Foto {foto.principal ? 'principal' : ''}"
+                    loading="lazy"
+                />
 
-                {#if !foto.principal}
-                    <button class="foto-principal-btn" on:click={() => setPrincipal(foto.id)} title="Definir como principal">★</button>
-                {:else}
+                {#if !foto.principal && !disabled}
+                    <button 
+                        class="foto-principal-btn" 
+                        on:click={() => setPrincipal(foto.id)} 
+                        title="Definir como principal"
+                        type="button"
+                    >
+                        ★
+                    </button>
+                {:else if foto.principal}
                     <div class="principal-badge">Principal</div>
                 {/if}
 
-                <button class="foto-remove-btn" on:click={() => removerFoto(foto.id)} title="Remover foto">✕</button>
+                {#if !disabled}
+                    <button 
+                        class="foto-remove-btn" 
+                        on:click={() => removerFoto(foto.id)} 
+                        title="Remover foto"
+                        type="button"
+                    >
+                        ✕
+                    </button>
+                {/if}
             </div>
         {/each}
 
-        {#if fotos.length < 6}
+        {#if fotos.length < maxFotos && !disabled}
             <label class="foto-add" class:loading={uploadLoading}>
                 <input
                     type="file"
@@ -108,12 +182,12 @@
     </div>
 
     <p class="fotos-hint">
-        Até 6 fotos · A primeira será sua principal (pode alterar depois)
-        <br>Formatos: JPEG, PNG, WebP · Máx 5 MB cada
+        Até {maxFotos} fotos · A primeira será sua principal (pode alterar depois)
+        <br>Formatos: JPEG, PNG, WebP · Máx {maxSizeMB} MB cada
     </p>
 
     {#if errors.foto}
-        <p class="field-error">⚠️ {errors.foto}</p>
+        <p class="field-error" role="alert">⚠️ {errors.foto}</p>
     {/if}
 </div>
 
@@ -141,6 +215,7 @@
         color:#fff; font-size:.58rem; font-weight:700;
         text-align:center; padding:.3rem;
         text-transform:uppercase; letter-spacing:.05em;
+        pointer-events:none;
     }
 
     .foto-principal-btn {
@@ -173,7 +248,7 @@
         transition:border-color .2s, background .2s;
         background:rgba(79,70,229,.03);
     }
-    .foto-add:hover {
+    .foto-add:hover:not(.loading) {
         border-color:var(--primary,#4F46E5);
         background:rgba(79,70,229,.07);
     }
