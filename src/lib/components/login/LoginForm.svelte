@@ -1,25 +1,28 @@
 <!-- $lib/components/login/LoginForm.svelte -->
 <script lang="ts">
-    import InputField from './InputField.svelte';
-    import SocialLogin from './SocialLogin.svelte';
-    import SubmitButton from './SubmitButton.svelte';
+    import InputField    from './InputField.svelte';
+    import SocialLogin   from './SocialLogin.svelte';
+    import SubmitButton  from './SubmitButton.svelte';
     import { getGoogleOAuthUrl } from '$lib/services/api';
-    import { validateEmail } from '$lib/utils/errorUtils';
+    import { validateEmail }     from '$lib/utils/errorUtils';
 
     interface LoginData { email: string; password: string; }
 
-    export let onSubmit: (data: LoginData) => Promise<void> = async () => {};
+    export let onSubmit:         (data: LoginData) => Promise<void> = async () => {};
     export let onForgotPassword: () => void = () => {};
-    export let onRegister: () => void = () => {};
-    export let loading = false;
+    export let onRegister:       () => void = () => {};
+    export let loading           = false;
+    // CORREÇÃO: erros externos (vindo do pai após resposta da API) são exibidos
+    export let externalError     = '';
 
-    let email = '';
+    let email    = '';
     let password = '';
     let errors: Record<string, string> = {};
 
     const handleSubmit = async (e: Event) => {
         e.preventDefault();
         errors = {};
+        externalError = '';
 
         if (!email.trim())              errors.email    = 'E-mail obrigatório';
         else if (!validateEmail(email)) errors.email    = 'E-mail inválido';
@@ -27,6 +30,7 @@
         else if (password.length < 6)   errors.password = 'Mínimo 6 caracteres';
 
         if (Object.keys(errors).length > 0) return;
+
         await onSubmit({ email: email.trim(), password });
     };
 
@@ -36,12 +40,34 @@
     };
 </script>
 
-<form on:submit={handleSubmit} novalidate>
-    <InputField type="email"    label="E-mail" placeholder="seu@email.com" bind:value={email}    error={errors.email}    required />
-    <InputField type="password" label="Senha"  placeholder="••••••••"      bind:value={password} error={errors.password} required />
+<form on:submit={handleSubmit} novalidate aria-label="Formulário de login">
+    {#if externalError}
+        <div class="external-error" role="alert">{externalError}</div>
+    {/if}
+
+    <InputField
+        type="email"
+        label="E-mail"
+        placeholder="seu@email.com"
+        bind:value={email}
+        error={errors.email}
+        required
+        autocomplete="email"
+    />
+    <InputField
+        type="password"
+        label="Senha"
+        placeholder="••••••••"
+        bind:value={password}
+        error={errors.password}
+        required
+        autocomplete="current-password"
+    />
 
     <div class="forgot-row">
-        <button type="button" class="link-btn" on:click={onForgotPassword}>Esqueceu a senha?</button>
+        <button type="button" class="link-btn" on:click={onForgotPassword}>
+            Esqueceu a senha?
+        </button>
     </div>
 
     <SubmitButton text="Entrar" {loading} disabled={loading} />
@@ -49,14 +75,25 @@
 </form>
 
 <style>
-    form { width:100%; }
-    .forgot-row { display:flex; justify-content:flex-end; margin-top:-.3rem; margin-bottom:.25rem; }
-    .link-btn {
-        background:none; border:none;
-        font-family:'Plus Jakarta Sans',sans-serif;
-        font-size:.78rem; font-weight:600;
-        color:var(--primary,#4F46E5);
-        cursor:pointer; padding:0; transition:color .2s;
+    form { width: 100%; }
+
+    .external-error {
+        background: #FEF2F2; border: 1px solid #FECACA;
+        color: #991B1B; font-size: .78rem;
+        padding: .55rem .85rem; border-radius: 8px;
+        margin-bottom: .75rem;
     }
-    .link-btn:hover { color:var(--accent,#7C3AED); }
+
+    .forgot-row {
+        display: flex; justify-content: flex-end;
+        margin-top: -.3rem; margin-bottom: .25rem;
+    }
+    .link-btn {
+        background: none; border: none;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: .78rem; font-weight: 600;
+        color: var(--primary, #4F46E5);
+        cursor: pointer; padding: 0; transition: color .2s;
+    }
+    .link-btn:hover { color: var(--accent, #7C3AED); }
 </style>

@@ -1,23 +1,34 @@
 <!-- src/routes/+page.svelte -->
 <script lang="ts">
     import { goto } from '$app/navigation';
-    import LoginSection from '$lib/components/login/LoginSection.svelte';
-    import LoginForm from '$lib/components/login/LoginForm.svelte';
-    import RegisterForm from '$lib/components/login/RegisterForm.svelte';
+    import { onMount } from 'svelte';
+    import LoginSection       from '$lib/components/login/LoginSection.svelte';
+    import LoginForm          from '$lib/components/login/LoginForm.svelte';
+    import RegisterForm       from '$lib/components/login/RegisterForm.svelte';
     import ForgotPasswordForm from '$lib/components/login/ForgotPasswordForm.svelte';
-    import { apiLogin, apiRegister, apiForgotPassword, apiGetMyProfile } from '$lib/services/api';
+    import { apiLogin, apiRegister, apiForgotPassword, apiGetMyProfile, apiSetToken } from '$lib/services/api';
     import { authStore } from '$lib/stores/authStore';
     import { handleApiError } from '$lib/utils/errorUtils';
 
     interface LoginData    { email: string; password: string; }
-    interface RegisterData { nome?: string; email: string; password: string; confirmPassword: string; }
+    interface RegisterData { nome?: string; email: string; password: string; confirmPassword: string; aceitouTermos: boolean; }
 
     type AuthMode = 'login' | 'register' | 'forgot';
 
-    let mode: AuthMode = 'login';
-    let globalError = '';
-    let successMessage = '';
-    let isLoading = false;
+    let mode: AuthMode    = 'login';
+    let globalError       = '';
+    let successMessage    = '';
+    let isLoading         = false;
+
+    // CORREÇÃO: redireciona usuário já autenticado direto para /home
+    onMount(() => {
+        const unsub = authStore.subscribe(state => {
+            if (!state.isLoading && state.isAuthenticated) {
+                goto('/home');
+            }
+        });
+        return unsub;
+    });
 
     const clear = () => { globalError = ''; successMessage = ''; };
 
@@ -33,14 +44,14 @@
             const res = await apiLogin(data.email, data.password);
             if (res.error || !res.data) throw new Error(res.error ?? 'Resposta inválida');
 
-            authStore.login({
-                id:    res.data.userId,
-                email: res.data.email,
-                token: res.data.token,
-            });
+            const { token, userId, email } = res.data;
+
+            // CORREÇÃO: usa authStore.login(user, token) com assinatura correta
+            authStore.login({ id: userId, email }, token);
 
             const hasPerfil = await temPerfil();
-            await goto(hasPerfil ? '/home' : '/Onboarding');
+            // CORREÇÃO: rota normalizada para /onboarding (minúsculo, consistente)
+            await goto(hasPerfil ? '/home' : '/onboarding');
         } catch (e) {
             globalError = handleApiError(e);
         } finally {
@@ -51,9 +62,12 @@
     const handleRegister = async (data: RegisterData) => {
         clear();
         isLoading = true;
-        const { confirmPassword: _, ...payload } = data;
         try {
-            const res = await apiRegister(payload);
+            const res = await apiRegister({
+                nome:     data.nome ?? '',
+                email:    data.email,
+                password: data.password,
+            });
             if (res.error) throw new Error(res.error);
             successMessage = 'Conta criada com sucesso! Faça seu login.';
             mode = 'login';
@@ -85,7 +99,7 @@
 <LoginSection>
     <div class="page-header">
         <div class="page-logo">
-            <span class="page-icon">🎓</span>
+            <span class="page-icon" aria-hidden="true">🎓</span>
             <span class="page-brand">UNeSe</span>
         </div>
 
@@ -102,7 +116,7 @@
     </div>
 
     {#if successMessage}
-        <div class="alert alert--success" role="status">
+        <div class="alert alert--success" role="status" aria-live="polite">
             <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
             </svg>
@@ -126,35 +140,32 @@
             onRegister={() => switchMode('register')}
             loading={isLoading}
         />
-
     {:else if mode === 'register'}
         <RegisterForm
             onSubmit={handleRegister}
             onLogin={() => switchMode('login')}
             loading={isLoading}
         />
-
     {:else}
         <ForgotPasswordForm
             onSubmit={handleForgotPassword}
             onBackToLogin={() => switchMode('login')}
-            loading={isLoading}
         />
     {/if}
 </LoginSection>
 
 <style>
-    .page-header { text-align:center; margin-bottom:1.75rem; }
-    .page-logo   { display:inline-flex; align-items:center; gap:.45rem; margin-bottom:1.1rem; }
-    .page-icon   { font-size:1.5rem; animation:pulse 3s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:.85} }
-    .page-brand  { font-family:'Plus Jakarta Sans',sans-serif; font-size:1.65rem; font-weight:800; color:var(--ink,#0F1624); letter-spacing:-.03em; }
-    .page-title  { font-family:'Plus Jakarta Sans',sans-serif; font-size:1.35rem; font-weight:700; color:var(--ink,#0F1624); margin-bottom:.25rem; }
-    .page-sub    { font-size:.82rem; color:var(--muted,#64748B); }
+    .page-header { text-align: center; margin-bottom: 1.75rem; }
+    .page-logo   { display: inline-flex; align-items: center; gap: .45rem; margin-bottom: 1.1rem; }
+    .page-icon   { font-size: 1.5rem; animation: pulse 3s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: .85; } }
+    .page-brand  { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.65rem; font-weight: 800; color: var(--ink, #0F1624); letter-spacing: -.03em; }
+    .page-title  { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.35rem; font-weight: 700; color: var(--ink, #0F1624); margin-bottom: .25rem; }
+    .page-sub    { font-size: .82rem; color: var(--muted, #64748B); }
 
-    .alert { display:flex; align-items:center; gap:.5rem; font-size:.82rem; padding:.65rem .9rem; border-radius:10px; margin-bottom:1rem; }
-    .alert svg { width:16px; height:16px; flex-shrink:0; }
-    .alert--success { background:#F0FDF4; border:1px solid #BBF7D0; color:#166534; }
-    .alert--error   { background:#FEF2F2; border:1px solid #FECACA; color:#991B1B; animation:shake .35s ease; }
-    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+    .alert { display: flex; align-items: center; gap: .5rem; font-size: .82rem; padding: .65rem .9rem; border-radius: 10px; margin-bottom: 1rem; }
+    .alert svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .alert--success { background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; }
+    .alert--error   { background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; animation: shake .35s ease; }
+    @keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
 </style>

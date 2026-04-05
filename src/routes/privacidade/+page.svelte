@@ -79,7 +79,7 @@
                 <li>✅ Eliminar seus dados pessoais (exclusão de conta)</li>
                 <li>✅ Revogar o consentimento a qualquer momento</li>
             </ul>
-            <p>Para exercer seus direitos, entre em contato pelo e-mail: <strong>privacidade@pairup.com</strong></p>
+            <p>Para exercer seus direitos, entre em contato pelo e-mail: <strong><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a4d4d6cdd2c5c7cdc0c5c0c1e4d4c5cdd6d1d48ac7cbc9">[email&#160;protected]</a></strong></p>
         </section>
 
         <section>
@@ -118,8 +118,8 @@
             <h2>10. Contato</h2>
             <p>Para questões sobre privacidade, dados pessoais ou exercício de direitos:</p>
             <ul>
-                <li>📧 E-mail: <strong>privacidade@pairup.com</strong></li>
-                <li>📧 DPO (Encarregado de Dados): <strong>dpo@pairup.com</strong></li>
+                <li>📧 E-mail: <strong><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d1a1a3b8a7b0b2b8b5b0b5b491a1b0b8a3a4a1ffb2bebc">[email&#160;protected]</a></strong></li>
+                <li>📧 DPO (Encarregado de Dados): <strong><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e581958aa595848c979095cb868a88">[email&#160;protected]</a></strong></li>
             </ul>
         </section>
 
@@ -193,24 +193,4 @@
         font-size: 0.9rem;
         line-height: 1.5;
         color: #1e293b;
-        margin-bottom: 0.75rem;
-    }
-    
-    ul {
-        margin: 0.5rem 0 0.75rem 1.5rem;
-    }
-    
-    li {
-        font-size: 0.85rem;
-        line-height: 1.4;
-        color: #334155;
-        margin-bottom: 0.25rem;
-    }
-    
-    .resumo {
-        background: #ecfdf5;
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid #a7f3d0;
-    }
-</style>
+        mar

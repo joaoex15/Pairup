@@ -3,10 +3,11 @@
     import { redirectToGoogleOAuth } from '$lib/services/api';
     import { browser } from '$app/environment';
 
-    export let onRegister: () => void = () => {};
-    export let showRegisterLink: boolean = true;
+    export let onRegister:       () => void = () => {};
+    export let showRegisterLink: boolean    = true;
+    // CORREÇÃO: prop onGoogleClick removida — o componente sempre usa
+    // redirectToGoogleOAuth de api.ts, mantendo a lógica centralizada.
 
-    // ✅ Função corrigida - redireciona o navegador, NÃO faz fetch
     const handleGoogleLogin = () => {
         if (!browser) return;
         redirectToGoogleOAuth();
@@ -18,7 +19,12 @@
         <span class="divider-label">ou continue com</span>
     </div>
 
-    <button type="button" class="google-btn" on:click={handleGoogleLogin}>
+    <button
+        type="button"
+        class="google-btn"
+        on:click={handleGoogleLogin}
+        aria-label="Entrar com Google"
+    >
         <svg class="google-icon" viewBox="0 0 48 48" aria-hidden="true">
             <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7C36 32 34.4 35 31.7 37l-.1.6 6.7 5.2.5.1C42.9 38.3 46.5 31.9 46.5 24.5z"/>
             <path fill="#34A853" d="M24 47c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.8c-2 1.4-4.6 2.3-8.3 2.3-6.4 0-11.8-4.3-13.7-10.1l-.6.1-7 5.4-.1.5C7.2 42.6 15 47 24 47z"/>
@@ -39,51 +45,51 @@
 </div>
 
 <style>
-    .social-wrap { margin-top:1.25rem; }
+    .social-wrap { margin-top: 1.25rem; }
 
     .divider {
-        position:relative; display:flex; align-items:center; margin-bottom:1rem;
+        position: relative; display: flex; align-items: center; margin-bottom: 1rem;
     }
     .divider::before, .divider::after {
-        content:''; flex:1; height:1px;
-        background:rgba(100,116,139,.18);
+        content: ''; flex: 1; height: 1px;
+        background: rgba(100,116,139,.18);
     }
     .divider-label {
-        font-size:.72rem; color:var(--muted,#64748B);
-        padding:0 .75rem; white-space:nowrap;
-        text-transform:uppercase; letter-spacing:.06em;
+        font-size: .72rem; color: var(--muted, #64748B);
+        padding: 0 .75rem; white-space: nowrap;
+        text-transform: uppercase; letter-spacing: .06em;
     }
 
     .google-btn {
-        width:100%; display:flex; align-items:center; justify-content:center;
-        gap:.6rem; padding:.72rem 1rem;
-        background:#fff;
-        border:1.5px solid rgba(100,116,139,.2);
-        border-radius:10px;
-        font-family:'Plus Jakarta Sans',sans-serif;
-        font-size:.88rem; font-weight:600;
-        color:var(--ink,#0F1624);
-        cursor:pointer;
-        transition:background .2s, border-color .2s, box-shadow .2s;
+        width: 100%; display: flex; align-items: center; justify-content: center;
+        gap: .6rem; padding: .72rem 1rem;
+        background: #fff;
+        border: 1.5px solid rgba(100,116,139,.2);
+        border-radius: 10px;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: .88rem; font-weight: 600;
+        color: var(--ink, #0F1624);
+        cursor: pointer;
+        transition: background .2s, border-color .2s, box-shadow .2s;
     }
     .google-btn:hover {
-        background:var(--primary-l,#EEF2FF);
-        border-color:rgba(79,70,229,.3);
-        box-shadow:0 2px 10px rgba(79,70,229,.1);
+        background: var(--primary-l, #EEF2FF);
+        border-color: rgba(79,70,229,.3);
+        box-shadow: 0 2px 10px rgba(79,70,229,.1);
     }
-    .google-icon { width:18px; height:18px; flex-shrink:0; }
+    .google-icon { width: 18px; height: 18px; flex-shrink: 0; }
 
     .register-prompt {
-        margin-top:1.1rem; text-align:center;
-        font-size:.8rem; color:var(--muted,#64748B);
+        margin-top: 1.1rem; text-align: center;
+        font-size: .8rem; color: var(--muted, #64748B);
     }
     .register-link {
-        background:none; border:none;
-        font-family:'Plus Jakarta Sans',sans-serif;
-        font-size:.8rem; font-weight:700;
-        color:var(--primary,#4F46E5);
-        cursor:pointer; padding:0; margin-left:.2rem;
-        transition:color .2s;
+        background: none; border: none;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: .8rem; font-weight: 700;
+        color: var(--primary, #4F46E5);
+        cursor: pointer; padding: 0; margin-left: .2rem;
+        transition: color .2s;
     }
-    .register-link:hover { color:var(--accent,#7C3AED); }
+    .register-link:hover { color: var(--accent, #7C3AED); }
 </style>
