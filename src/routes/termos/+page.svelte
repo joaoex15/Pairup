@@ -1,31 +1,5 @@
 <!-- $lib/components/TermoUso.svelte -->
-<script lang="ts">
-    export let aceito = false;
-    export let obrigatorio = true;
-    
-    const dispatch = createEventDispatcher();
-    
-    function aceitar() {
-        aceito = true;
-        dispatch('aceitar');
-        if (obrigatorio) {
-            localStorage.setItem('termo_aceito', 'true');
-            localStorage.setItem('termo_aceito_data', new Date().toISOString());
-        }
-    }
-    
-    function recusar() {
-        aceito = false;
-        dispatch('recusar');
-        if (obrigatorio) {
-            window.location.href = '/';
-        }
-    }
-</script>
-
 <script lang="ts" context="module">
-    import { createEventDispatcher } from 'svelte';
-    
     export function verificarAceiteTermo(): boolean {
         if (typeof localStorage === 'undefined') return false;
         return localStorage.getItem('termo_aceito') === 'true';
@@ -34,6 +8,11 @@
     export function resetarAceiteTermo(): void {
         localStorage.removeItem('termo_aceito');
         localStorage.removeItem('termo_aceito_data');
+    }
+    
+    export function marcarTermoAceito(): void {
+        localStorage.setItem('termo_aceito', 'true');
+        localStorage.setItem('termo_aceito_data', new Date().toISOString());
     }
 </script>
 
@@ -178,17 +157,6 @@
             </ul>
         </section>
     </div>
-
-    {#if obrigatorio}
-        <div class="termo-actions">
-            <button class="btn-recusar" on:click={recusar}>
-                ❌ Recusar e Sair
-            </button>
-            <button class="btn-aceitar" on:click={aceitar}>
-                ✅ Aceito os Termos de Uso
-            </button>
-        </div>
-    {/if}
 </div>
 
 <style>
@@ -220,7 +188,7 @@
     }
     
     .termo-conteudo {
-        max-height: 60vh;
+        max-height: 70vh;
         overflow-y: auto;
         padding-right: 1rem;
     }
@@ -274,44 +242,5 @@
     
     .resumo-rapido li {
         font-size: 0.8rem;
-    }
-    
-    .termo-actions {
-        display: flex;
-        gap: 1rem;
-        justify-content: flex-end;
-        margin-top: 1.5rem;
-        padding-top: 1rem;
-        border-top: 1px solid #e2e8f0;
-    }
-    
-    button {
-        padding: 0.75rem 1.5rem;
-        border-radius: 40px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        border: none;
-        font-size: 0.9rem;
-    }
-    
-    .btn-recusar {
-        background: #f1f5f9;
-        color: #dc2626;
-        border: 1px solid #fecaca;
-    }
-    
-    .btn-recusar:hover {
-        background: #fee2e2;
-    }
-    
-    .btn-aceitar {
-        background: #4F46E5;
-        color: white;
-    }
-    
-    .btn-aceitar:hover {
-        background: #4338ca;
-        transform: translateY(-1px);
     }
 </style>

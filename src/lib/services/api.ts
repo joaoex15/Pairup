@@ -1,3 +1,6 @@
+// $lib/services/api.ts
+// ✅ ÚNICO arquivo de requisições — não faça fetch em nenhum outro lugar.
+// ✅ BASE_URL vem de .env (VITE_API_BASE). Nunca hardcode a URL.
 
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
@@ -59,7 +62,7 @@ const checkRateLimit = (endpoint: string): boolean => {
     return true;
 };
 
-// ─── Tipos de resposta (ATUALIZADOS conforme backend) ───────────────────────
+// ─── Tipos de resposta ──────────────────────────────────────────────────────
 
 export interface ApiResponse<T = unknown> {
     data?: T;
@@ -115,7 +118,7 @@ export interface PessoaResponse {
     ativo?: boolean;
     cienciaResponsabilidade?: boolean;
     usuarioId?: string;
-    tags?: string[]; // Agora é List<String> no DTO
+    tags?: string[];
     imagens?: ImagemResponse[];
     fotoPerfilUrl?: string;
 }
@@ -152,7 +155,7 @@ export interface PessoaPayload {
     telegram?: string;
     ativo?: boolean;
     cienciaResponsabilidade?: boolean;
-    tags?: string[]; // Agora é array de strings (nomes das tags)
+    tags?: string[];
 }
 
 export interface MatchResponse {
@@ -194,27 +197,33 @@ export interface PageResponse<T> {
 function getToken(): string | null {
     if (!browser) return null;
     try {
-        const token = localStorage.getItem('token');
-        if (token) return token;
-        
-        const raw = localStorage.getItem('user');
-        if (!raw) return null;
-        const user = JSON.parse(raw);
-        return user?.token ?? null;
+        return localStorage.getItem('token');
     } catch {
         return null;
     }
 }
 
+function setToken(token: string): void {
+    if (!browser) return;
+    try {
+        localStorage.setItem('token', token);
+    } catch (e) {
+        console.error('[api] Failed to save token:', e);
+    }
+}
+
+function removeToken(): void {
+    if (!browser) return;
+    try {
+        localStorage.removeItem('token');
+    } catch (e) {
+        console.error('[api] Failed to remove token:', e);
+    }
+}
+
 function authHeaders(): Record<string, string> {
     const token = getToken();
-    const headers: Record<string, string> = {};
-    
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    return headers;
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
 async function request<T>(
@@ -242,10 +251,9 @@ async function request<T>(
         });
 
         if (res.status === 401 && browser) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            sessionStorage.clear();
+            removeToken();
             
+            // Redireciona apenas se não estiver já na página de login
             if (!window.location.pathname.includes('/auth') && window.location.pathname !== '/') {
                 goto('/');
             }
@@ -300,8 +308,7 @@ async function requestMultipart<T>(
         });
 
         if (res.status === 401 && browser) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            removeToken();
             if (!window.location.pathname.includes('/auth')) {
                 goto('/');
             }
@@ -334,6 +341,12 @@ export const apiRegister = (user: { nome: string; email: string; password: strin
         body: JSON.stringify(user),
     });
 
+export const apiForgotPassword = (email: string) =>
+    request('/users/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+    });
+
 export const apiGetMe = () =>
     request<UserResponse>('/users/me');
 
@@ -346,7 +359,7 @@ export const apiUpdateMe = (user: Partial<UserResponse>) =>
 export const apiDeleteMe = () =>
     request('/users/me', { method: 'DELETE' });
 
-// ─── Pessoas (ATUALIZADO) ───────────────────────────────────────────────────
+// ─── Pessoas ────────────────────────────────────────────────────────────────
 
 export const apiGetPessoas = (params?: {
     interesse?: string;
@@ -408,7 +421,7 @@ export const apiGetLikesDados = (page = 0, size = 20) =>
 export const apiGetLikesRecebidos = (page = 0, size = 20) =>
     request<PageResponse<LikeResponse>>(`/likes/recebidos?page=${page}&size=${size}`);
 
-// ─── Imagens (ATUALIZADO) ───────────────────────────────────────────────────
+// ─── Imagens ────────────────────────────────────────────────────────────────
 
 export const apiUploadImagem = (file: File, perfil: boolean) => {
     const form = new FormData();
@@ -423,11 +436,6 @@ export const apiDeleteImagem = (imagemId: string) =>
 export const apiListMinhasImagens = () =>
     request<ImagemResponse[]>('/api/imagens/minhas-imagens');
 
-export const apiGetImagemProxyUrl = (publicId: string): string => {
-    const base = `${BASE_URL}/api/imagens/proxy/${publicId}`;
-    return base; // O token vai no header Authorization, não na URL
-};
-
 // ─── Tags ───────────────────────────────────────────────────────────────────
 
 export const apiGetTags = () =>
@@ -436,49 +444,20 @@ export const apiGetTags = () =>
 export const apiGetTagsAtivas = () =>
     request<TagResponse[]>('/tags/ativas');
 
-// ─── OAuth2 (CORRIGIDO - usa redirect do navegador) ─────────────────────────
-
-/**
- * ✅ CORRETO: Redireciona o navegador para o Google OAuth
- * ❌ NÃO use fetch() com esta URL - isso causa erro CORS
- */
-export const redirectToGoogleOAuth = (): void => {
-    if (!browser) return;
-    const url = `${BASE_URL}/oauth2/authorization/google`;
-    window.location.href = url;
-};
-
-/**
- * Processa o callback OAuth após redirect
- * O backend redireciona para /oauth2/redirect com o token na URL
- */
-export const handleOAuthRedirect = (): void => {
-    if (!browser) return;
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    const error = urlParams.get('error');
-    
-    if (error) {
-        console.error('[OAuth] Erro:', error);
-        localStorage.removeItem('token');
-        goto('/auth?error=' + encodeURIComponent(error));
-        return;
-    }
-    
-    if (token) {
-        localStorage.setItem('token', token);
-        // Limpa a URL sem recarregar a página
-        window.history.replaceState({}, document.title, window.location.pathname);
-        goto('/app');
-        return;
-    }
-    
-    // Se não tem token nem erro, verifica se está na página de callback
-    if (window.location.pathname.includes('/oauth2/redirect')) {
-        console.warn('[OAuth] Callback sem token');
-        goto('/auth?error=oauth_failed');
-    }
-};
+// ─── Utilitários ───────────────────────────────────────────────────────────
 
 export const getApiBaseUrl = (): string => BASE_URL;
+export const apiSetToken = setToken;
+export const apiRemoveToken = removeToken;
+export const apiGetToken = getToken;
+
+// ─── OAuth2 ─────────────────────────────────────────────────────────────────
+
+export const getGoogleOAuthUrl = (): string => {
+    return `${BASE_URL}/oauth2/authorization/google`;
+};
+
+export const redirectToGoogleOAuth = (): void => {
+    if (!browser) return;
+    window.location.href = getGoogleOAuthUrl();
+};

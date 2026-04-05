@@ -1,26 +1,13 @@
 <!-- $lib/components/PoliticaPrivacidade.svelte -->
-<script lang="ts">
-    export let aceito = false;
-    export let obrigatorio = true;
-    
-    const dispatch = createEventDispatcher();
-    
-    function aceitar() {
-        aceito = true;
-        dispatch('aceitar');
-        if (obrigatorio) {
-            localStorage.setItem('privacidade_aceita', 'true');
-            localStorage.setItem('privacidade_aceita_data', new Date().toISOString());
-        }
-    }
-</script>
-
 <script lang="ts" context="module">
-    import { createEventDispatcher } from 'svelte';
-    
     export function verificarAceitePrivacidade(): boolean {
         if (typeof localStorage === 'undefined') return false;
         return localStorage.getItem('privacidade_aceita') === 'true';
+    }
+    
+    export function marcarPrivacidadeAceita(): void {
+        localStorage.setItem('privacidade_aceita', 'true');
+        localStorage.setItem('privacidade_aceita_data', new Date().toISOString());
     }
 </script>
 
@@ -148,14 +135,6 @@
             </ul>
         </section>
     </div>
-
-    {#if obrigatorio}
-        <div class="privacidade-actions">
-            <button class="btn-aceitar" on:click={aceitar}>
-                ✅ Aceito a Política de Privacidade
-            </button>
-        </div>
-    {/if}
 </div>
 
 <style>
@@ -187,7 +166,7 @@
     }
     
     .privacidade-conteudo {
-        max-height: 60vh;
+        max-height: 70vh;
         overflow-y: auto;
         padding-right: 1rem;
     }
@@ -233,30 +212,5 @@
         padding: 1rem;
         border-radius: 12px;
         border: 1px solid #a7f3d0;
-    }
-    
-    .privacidade-actions {
-        display: flex;
-        justify-content: flex-end;
-        margin-top: 1.5rem;
-        padding-top: 1rem;
-        border-top: 1px solid #e2e8f0;
-    }
-    
-    .btn-aceitar {
-        background: #10b981;
-        color: white;
-        padding: 0.75rem 1.5rem;
-        border-radius: 40px;
-        font-weight: 600;
-        cursor: pointer;
-        border: none;
-        font-size: 0.9rem;
-        transition: all 0.2s;
-    }
-    
-    .btn-aceitar:hover {
-        background: #059669;
-        transform: translateY(-1px);
     }
 </style>
