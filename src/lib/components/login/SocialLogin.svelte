@@ -1,8 +1,16 @@
 <!-- $lib/components/login/SocialLogin.svelte -->
 <script lang="ts">
-    export let onGoogleClick: () => void = () => {};
+    import { redirectToGoogleOAuth } from '$lib/services/api';
+    import { browser } from '$app/environment';
+
     export let onRegister: () => void = () => {};
     export let showRegisterLink: boolean = true;
+
+    // ✅ Função corrigida - redireciona o navegador, NÃO faz fetch
+    const handleGoogleLogin = () => {
+        if (!browser) return;
+        redirectToGoogleOAuth();
+    };
 </script>
 
 <div class="social-wrap">
@@ -10,7 +18,7 @@
         <span class="divider-label">ou continue com</span>
     </div>
 
-    <button type="button" class="google-btn" on:click={onGoogleClick}>
+    <button type="button" class="google-btn" on:click={handleGoogleLogin}>
         <svg class="google-icon" viewBox="0 0 48 48" aria-hidden="true">
             <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7C36 32 34.4 35 31.7 37l-.1.6 6.7 5.2.5.1C42.9 38.3 46.5 31.9 46.5 24.5z"/>
             <path fill="#34A853" d="M24 47c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.8c-2 1.4-4.6 2.3-8.3 2.3-6.4 0-11.8-4.3-13.7-10.1l-.6.1-7 5.4-.1.5C7.2 42.6 15 47 24 47z"/>
