@@ -6,7 +6,7 @@
         apiGetMyProfile, apiGetMyMatches, apiGetPessoa,
         apiGetMatchRedesSociais, apiDesfazerMatch,
         apiGetLikesDados,
-        type PessoaResponse, type RedesSociaisResponse
+        type PessoaPerfilDTO, type PessoaRedesSociaisDTO
     } from '$lib/services/api';
     import { handleApiError } from '$lib/utils/errorUtils';
 
@@ -38,8 +38,6 @@
     let likeCount  = 0;
     let minhaPessoaId = '';
 
-    const fotoUrl = (_pessoaId: string): string => '';
-
     onMount(async () => {
         loading = true;
         globalError = '';
@@ -63,14 +61,14 @@
                             apiGetPessoa(outroId),
                             apiGetMatchRedesSociais(m.id),
                         ]);
-                        const pessoa: PessoaResponse | undefined = pesRes.data;
-                        const redes:  RedesSociaisResponse | undefined = redesRes.data;
+                        const pessoa: PessoaPerfilDTO | undefined = pesRes.data;
+                        const redes:  PessoaRedesSociaisDTO | undefined = redesRes.data;
                         return {
                             matchId:   m.id,
                             pessoaId:  outroId,
                             nome:      pessoa?.nome  ?? 'Pessoa',
                             curso:     pessoa?.curso ?? '',
-                            fotoUrl:   fotoUrl(outroId),
+                            fotoUrl:   pessoa?.fotoPerfilUrl ?? '',
                             instagram: redes?.instagram ?? '',
                             whatsapp:  redes?.whatsapp  ?? '',
                             telegram:  redes?.telegram  ?? '',
@@ -86,13 +84,13 @@
                 likesDados = await Promise.all(
                     ativos.map(async l => {
                         const pesRes = await apiGetPessoa(l.pessoaDestinoId);
-                        const pessoa = pesRes.data;
+                        const pessoa: PessoaPerfilDTO | undefined = pesRes.data;
                         return {
                             likeId:   l.id,
                             pessoaId: l.pessoaDestinoId,
                             nome:     pessoa?.nome  ?? 'Pessoa',
                             curso:    pessoa?.curso ?? '',
-                            fotoUrl:  fotoUrl(l.pessoaDestinoId),
+                            fotoUrl:  pessoa?.fotoPerfilUrl ?? '',
                         };
                     })
                 );
@@ -122,7 +120,7 @@
         </button>
         <div class="header-logo">
             <span class="header-icon">🎓</span>
-            <span class="header-brand">UNeSe</span>
+            <span class="header-brand">PairUp</span>
         </div>
         <div style="width:36px"></div>
     </header>

@@ -5,13 +5,11 @@
     import {
         apiGetPessoas, apiGetMyProfile, apiGetMyMatches,
         apiDarLike, apiGetTagsAtivas,
-        type PessoaResponse, type TagResponse
+        type PessoaPerfilDTO, type TagResponse
     } from '$lib/services/api';
 
-    // CORREÇÃO: apiImagemProxyUrl não existe — removida. Fotos usam fotoPerfilUrl diretamente.
-
-    interface PessoaView extends PessoaResponse {
-        fotos: string[];
+    interface PessoaView extends PessoaPerfilDTO {
+        fotos:   string[];
         tagObjs: TagResponse[];
     }
 
@@ -23,7 +21,7 @@
     let matchCount    = 0;
     let fotoIndex     = 0;
     let minhaPessoaId = '';
-    let minhaPessoa:  PessoaResponse | null = null;
+    let minhaPessoa:  PessoaPerfilDTO | null = null;
     let avaliadosIds  = new Set<string>();
 
     let showFilters    = false;
@@ -32,8 +30,8 @@
     let tagsLoading    = true;
     let searchTagTerm  = '';
 
-    // Extrai URLs de foto do perfil da PessoaResponse
-    const fotosParaPessoa = (p: PessoaResponse): string[] => {
+    // Extrai URLs de foto do perfil da PessoaPerfilDTO
+    const fotosParaPessoa = (p: PessoaPerfilDTO): string[] => {
         const urls: string[] = [];
         if (p.fotoPerfilUrl) urls.push(p.fotoPerfilUrl);
         if (p.imagens) {
@@ -44,7 +42,7 @@
         return urls;
     };
 
-    const compativeis = (eu: PessoaResponse, outra: PessoaResponse): boolean => {
+    const compativeis = (eu: PessoaPerfilDTO, outra: PessoaPerfilDTO): boolean => {
         const meuG = eu.genero; const meuI = eu.interesse;
         const outG = outra.genero; const outI = outra.interesse;
         if (!meuG || !meuI || !outG || !outI) return true;
@@ -107,7 +105,6 @@
             const matchRes = await apiGetMyMatches(0, 1);
             if (matchRes.data) matchCount = matchRes.data.totalElements;
 
-            // CORREÇÃO: size=20 alinhado ao @PageableDefault do backend
             const pesRes = await apiGetPessoas({ size: 20 });
             if (pesRes.data) {
                 todasPessoas = (pesRes.data.content ?? [])
@@ -145,7 +142,6 @@
         swipeDir = 'like';
         avaliadosIds = new Set([...avaliadosIds, pessoaAtual.id]);
         try {
-            // CORREÇÃO: apiDarLike usa pessoaAtual.id (id do perfil), não do usuário
             const res = await apiDarLike(pessoaAtual.id);
             if (res.data?.match) matchCount++;
         } catch (e) { console.error('[like]', e); }
@@ -209,7 +205,7 @@
     <header class="header">
         <div class="header-logo">
             <span class="header-icon" aria-hidden="true">🎓</span>
-            <span class="header-brand">UNeSe</span>
+            <span class="header-brand">PairUp</span>
         </div>
         <nav class="header-nav" aria-label="Navegação principal">
             <button class="nav-btn" class:nav-btn--active={filtroAtivo} on:click={() => showFilters = !showFilters} aria-label="Filtros{filtroAtivo ? ` (${filtroTags.length} ativo${filtroTags.length > 1 ? 's' : ''})` : ''}" aria-expanded={showFilters}>

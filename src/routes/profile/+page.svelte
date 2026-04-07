@@ -37,8 +37,15 @@
     let fotos:         Foto[]       = [];
     let availableTags: TagResponse[] = [];
     let selectedTags:  TagResponse[] = [];
+    let pendingTagIds: string[]      = [];
     let tagsLoading = true;
     let searchTerm  = '';
+
+    // Reconcilia selectedTags quando availableTags carregam depois do perfil
+    $: if (pendingTagIds.length > 0 && availableTags.length > 0) {
+        selectedTags  = availableTags.filter(t => pendingTagIds.includes(t.id));
+        pendingTagIds = [];
+    }
 
     const generos = [
         { value: 'MASCULINO',  label: 'Masculino'    },
@@ -70,7 +77,7 @@
         if (tagsRes.data) availableTags = tagsRes.data;
         tagsLoading = false;
 
-        // Perfil
+        // Perfil completo (GET /pessoas/me retorna PessoaCompletaDTO)
         const res = await apiGetMyProfile();
         if (res.error || !res.data) {
             globalError = 'Não foi possível carregar seu perfil.';
@@ -89,13 +96,28 @@
             genero:    (p.genero    ?? '') as Genero | '',
             interesse: (p.interesse ?? '') as Interesse | '',
             descricao: p.descricao  ?? '',
+            // PessoaCompletaDTO inclui redes sociais diretamente
             instagram: p.instagram  ?? '',
             whatsapp:  p.whatsapp   ?? '',
             telegram:  p.telegram   ?? '',
         };
 
-        if (p.tags?.length) {
-            selectedTags = p.tags.map(t => ({ id: t.id, nome: t.nome, categoria: t.categoria ?? '', ativa: t.ativa ?? true }));
+        // PessoaCompletaDTO.tags é List<String> de IDs
+        if (p.tags?.length && availableTags.length > 0) {
+            selectedTags = availableTags.filter(t => (p.tags ?? []).includes(t.id));
+        } else if (p.tags?.length) {
+            pendingTagIds = p.tags;
+        }
+
+        // Carrega fotos existentes do perfil
+        if (p.imagens && p.imagens.length > 0) {
+            fotos = p.imagens
+                .filter(img => img.ativa !== false)
+                .map(img => ({
+                    id:        img.id,
+                    url:       img.url,
+                    principal: img.perfil,
+                }));
         }
 
         loading = false;
@@ -115,30 +137,29 @@
 
         if (Object.keys(errors).length > 0) { saving = false; return; }
 
-       // src/routes/profile/+page.svelte - linha ~120
-            const payload: PessoaPayload = {
-                id:        pessoaId,
-                nome:      formData.nome,
-                email:     formData.email,
-                curso:     formData.curso,
-                dataNasc:  formData.dataNasc,
-                genero:    formData.genero,
-                interesse: formData.interesse,
-                descricao: formData.descricao,
-                instagram: formData.instagram,
-                whatsapp:  formData.whatsapp,
-                telegram:  formData.telegram,
-                ativo:     true,
-                tags:      selectedTags.map(t => ({ id: t.id, nome: t.nome })),
-                // ✅ ADICIONAR ESTA LINHA
-                cienciaResponsabilidade: true,  // Mantém o flag como true
-            };
+        // CORREÇÃO: PessoaPayload.tags é string[] de IDs — não enviar objetos Tag
+        // CORREÇÃO: não enviar 'id' no payload — controller usa JWT para identificar
+        const payload: PessoaPayload = {
+            nome:                    formData.nome,
+            email:                   formData.email,
+            curso:                   formData.curso,
+            dataNasc:                formData.dataNasc,
+            genero:                  formData.genero,
+            interesse:               formData.interesse,
+            descricao:               formData.descricao,
+            instagram:               formData.instagram,
+            whatsapp:                formData.whatsapp,
+            telegram:                formData.telegram,
+            ativo:                   true,
+            cienciaResponsabilidade: true,
+            tags:                    selectedTags.map(t => t.id),
+        };
 
         try {
             const res = await apiUpdateMyProfile(payload);
             if (res.error) throw new Error(res.error);
 
-            // Upload de novas fotos
+            // Upload apenas de fotos novas (que têm File associado)
             for (const foto of fotos.filter(f => f.file instanceof File)) {
                 await apiUploadImagem(foto.file as File, foto.principal);
             }
@@ -158,7 +179,6 @@
         loading = true;
         globalError = '';
         try {
-            // Deleta perfil e depois o usuário
             await apiDeleteMyProfile();
             await apiDeleteMe();
             authStore.logout();
