@@ -10,7 +10,7 @@
     import InputField    from '$lib/components/login/InputField.svelte';
     import FotosUploader from '$lib/components/FotosUploader.svelte';
     import { validateAge, handleApiError } from '$lib/utils/errorUtils';
-    import { CURSOS } from '$lib/data/cursos';
+    import { CURSOS } from '$lib/data/cursos.ts';
 
     // Máscara WhatsApp: (XX) XXXXX-XXXX
     const mascaraWhatsApp = (valor: string): string => {
