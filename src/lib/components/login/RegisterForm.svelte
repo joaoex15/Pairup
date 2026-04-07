@@ -5,19 +5,18 @@
     import { validateEmail } from '$lib/utils/errorUtils';
 
     interface RegisterData {
-        nome?:          string;
-        email:          string;
-        password:       string;
+        nome?:           string;
+        email:           string;
+        password:        string;
         confirmPassword: string;
-        aceitouTermos:  boolean;
+        aceitouTermos:   boolean;
     }
 
-    export let onSubmit:     (data: RegisterData) => Promise<void> = async () => {};
-    export let onLogin:      () => void = () => {};
-    export let loading       = false;
-    export let extraErrors:  Record<string, string> = {};
+    export let onSubmit:    (data: RegisterData) => Promise<void> = async () => {};
+    export let onLogin:     () => void = () => {};
+    export let loading      = false;
+    export let extraErrors: Record<string, string> = {};
 
-    let nome            = '';
     let email           = '';
     let password        = '';
     let confirmPassword = '';
@@ -36,18 +35,17 @@
         }
 
         if (!password) {
-            errors.password = 'Senha obrigatória';       hasError = true;
+            errors.password = 'Senha obrigatória';   hasError = true;
         } else if (password.length < 6) {
-            errors.password = 'Mínimo 6 caracteres';     hasError = true;
+            errors.password = 'Mínimo 6 caracteres'; hasError = true;
         }
 
         if (!confirmPassword) {
-            errors.confirmPassword = 'Confirme sua senha';       hasError = true;
+            errors.confirmPassword = 'Confirme sua senha';      hasError = true;
         } else if (password && password !== confirmPassword) {
-            errors.confirmPassword = 'As senhas não coincidem';  hasError = true;
+            errors.confirmPassword = 'As senhas não coincidem'; hasError = true;
         }
 
-        // CORREÇÃO: valida aceitação dos termos antes de submeter
         if (!aceitouTermos) {
             errors.termos = 'Você deve aceitar os termos para continuar'; hasError = true;
         }
@@ -56,7 +54,7 @@
 
         loading = true;
         try {
-            await onSubmit({ nome: nome.trim() || undefined, email: email.trim(), password, confirmPassword, aceitouTermos });
+            await onSubmit({ email: email.trim(), password, confirmPassword, aceitouTermos });
         } finally {
             loading = false;
         }
@@ -65,17 +63,10 @@
 
 <div class="form-header">
     <h3 class="form-title">Criar conta</h3>
-    <p class="form-sub">Comece sua jornada na UNeSe</p>
+    <p class="form-sub">Comece sua jornada no PairUp</p>
 </div>
 
 <form on:submit={handleSubmit} novalidate aria-label="Formulário de cadastro">
-    <InputField
-        type="text"
-        placeholder="Seu nome (opcional)"
-        label="Nome"
-        bind:value={nome}
-        autocomplete="name"
-    />
     <InputField
         type="email"
         placeholder="seu@email.com"
@@ -104,7 +95,6 @@
         autocomplete="new-password"
     />
 
-    <!-- Aceite de termos -->
     <label class="termos-label">
         <input type="checkbox" bind:checked={aceitouTermos} class="termos-check" />
         <span class="termos-text">
@@ -114,10 +104,6 @@
     </label>
     {#if errors.termos}
         <p class="field-error" role="alert">⚠️ {errors.termos}</p>
-    {/if}
-
-    {#if extraErrors.termos}
-        <p class="field-error" role="alert">⚠️ {extraErrors.termos}</p>
     {/if}
 
     {#if extraErrors.geral}

@@ -1,6 +1,7 @@
 <!-- $lib/components/FotosUploader.svelte -->
 <script lang="ts">
     import { createEventDispatcher, onDestroy } from 'svelte';
+    import { apiDeleteImagem } from '$lib/services/api';
 
     export let fotos: Array<{
         id:        string;
@@ -9,26 +10,28 @@
         principal: boolean;
     }> = [];
 
-    export let errors:    Record<string, string> = {};
-    export let disabled   = false;
-    export let maxFotos   = 6;
-    export let maxSizeMB  = 5;
+    export let errors:   Record<string, string> = {};
+    export let disabled  = false;
+    export let maxFotos  = 6;
+    export let maxSizeMB = 5;
 
-    // Tipos MIME aceitos — espelha exatamente o backend (MIME_ACEITOS no proxy)
     const TIPOS_ACEITOS = ['image/jpeg', 'image/png', 'image/webp'] as const;
-    type TipoAceito = typeof TIPOS_ACEITOS[number];
 
-    const dispatch       = createEventDispatcher();
-    let uploadLoading    = false;
-    let uploadError      = '';
+    const dispatch    = createEventDispatcher();
+    let uploadLoading = false;
+    let uploadError   = '';
+    let removingId    = '';   // ID da foto sendo removida (mostra spinner)
 
     // Rastreia URLs blob criadas localmente para revogação correta
     const blobsLocais = new Set<string>();
 
+    // Uma foto é "já salva no servidor" quando o id NÃO começa com "temp-"
+    const isSalvaNoServidor = (id: string) => !id.startsWith('temp-');
+
     const handleFileSelect = async (e: Event) => {
         const input = e.target as HTMLInputElement;
         const files = Array.from(input.files ?? []);
-        input.value = '';   // limpa imediatamente para permitir re-seleção do mesmo arquivo
+        input.value = '';
         if (files.length === 0) return;
 
         uploadError = '';
@@ -40,39 +43,33 @@
 
         uploadLoading = true;
 
-        const novosUploads: Array<{ foto: typeof fotos[0]; file: File }> = [];
+        const novos: Array<typeof fotos[0]> = [];
 
         for (const file of files) {
-            // CORREÇÃO: valida tipo pelo MIME, não pela extensão
             if (!(TIPOS_ACEITOS as readonly string[]).includes(file.type)) {
                 uploadError = 'Apenas JPEG, PNG e WebP são permitidos';
                 continue;
             }
-
             if (file.size > maxSizeMB * 1024 * 1024) {
                 uploadError = `Imagem muito grande (máx ${maxSizeMB} MB)`;
                 continue;
             }
 
-            const localUrl      = URL.createObjectURL(file);
-            blobsLocais.add(localUrl);   // rastreia para revogação posterior
+            const localUrl = URL.createObjectURL(file);
+            blobsLocais.add(localUrl);
 
-            const isPrimeiraFoto = fotos.length === 0 && novosUploads.length === 0;
-
-            novosUploads.push({
-                foto: {
-                    id:        `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-                    url:       localUrl,
-                    file,
-                    principal: isPrimeiraFoto,
-                },
+            const isPrimeira = fotos.length === 0 && novos.length === 0;
+            novos.push({
+                id:        `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                url:       localUrl,
                 file,
+                principal: isPrimeira,
             });
         }
 
-        if (novosUploads.length > 0) {
-            fotos = [...fotos, ...novosUploads.map(u => u.foto)];
-            dispatch('fotos-selecionadas', novosUploads.map(u => u.file));
+        if (novos.length > 0) {
+            fotos = [...fotos, ...novos];
+            dispatch('fotos-selecionadas', novos.map(f => f.file));
         }
 
         uploadLoading = false;
@@ -84,27 +81,46 @@
         dispatch('principal-alterada', id);
     };
 
-    const removerFoto = (id: string) => {
-        if (disabled) return;
-        const removida = fotos.find(f => f.id === id);
+    const removerFoto = async (id: string) => {
+        if (disabled || removingId) return;
 
-        // CORREÇÃO: revoga apenas URLs blob criadas localmente (não URLs do servidor)
-        if (removida?.url && blobsLocais.has(removida.url)) {
-            URL.revokeObjectURL(removida.url);
-            blobsLocais.delete(removida.url);
+        const foto = fotos.find(f => f.id === id);
+        if (!foto) return;
+
+        // ── Foto já salva no servidor: chama DELETE na API ──────────────────
+        if (isSalvaNoServidor(id)) {
+            removingId = id;
+            try {
+                const res = await apiDeleteImagem(id);
+                if (res.error) {
+                    uploadError = `Erro ao remover foto: ${res.error}`;
+                    removingId = '';
+                    return;
+                }
+            } catch (e) {
+                uploadError = 'Erro ao remover foto do servidor.';
+                removingId = '';
+                return;
+            }
+            removingId = '';
+        }
+
+        // ── Foto local (blob): revoga URL ────────────────────────────────────
+        if (foto.url && blobsLocais.has(foto.url)) {
+            URL.revokeObjectURL(foto.url);
+            blobsLocais.delete(foto.url);
         }
 
         fotos = fotos.filter(f => f.id !== id);
 
         // Se removeu a principal, promove a primeira restante
-        if (removida?.principal && fotos.length > 0) {
+        if (foto.principal && fotos.length > 0) {
             fotos = fotos.map((f, i) => ({ ...f, principal: i === 0 }));
         }
 
         dispatch('foto-removida', id);
     };
 
-    // Limpa todos os blobs locais ao destruir o componente
     onDestroy(() => {
         blobsLocais.forEach(url => URL.revokeObjectURL(url));
         blobsLocais.clear();
@@ -146,7 +162,14 @@
                         title="Remover foto"
                         type="button"
                         aria-label="Remover foto"
-                    >✕</button>
+                        disabled={removingId === foto.id}
+                    >
+                        {#if removingId === foto.id}
+                            <span class="remove-spinner"></span>
+                        {:else}
+                            ✕
+                        {/if}
+                    </button>
                 {/if}
             </div>
         {/each}
@@ -232,7 +255,16 @@
         cursor: pointer; display: flex; align-items: center; justify-content: center;
         transition: background .2s, color .2s;
     }
-    .foto-remove-btn:hover { background: rgba(0,0,0,.8); color: #ef4444; }
+    .foto-remove-btn:hover:not(:disabled) { background: rgba(0,0,0,.8); color: #ef4444; }
+    .foto-remove-btn:disabled { opacity: .6; cursor: default; }
+
+    .remove-spinner {
+        width: 12px; height: 12px;
+        border: 2px solid rgba(255,255,255,.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin .6s linear infinite;
+    }
 
     .foto-add {
         aspect-ratio: 1;

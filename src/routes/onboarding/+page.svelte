@@ -10,6 +10,23 @@
     import InputField    from '$lib/components/login/InputField.svelte';
     import FotosUploader from '$lib/components/FotosUploader.svelte';
     import { validateAge, handleApiError } from '$lib/utils/errorUtils';
+    import { CURSOS } from '$lib/data/cursos';
+
+    // Máscara WhatsApp: (XX) XXXXX-XXXX
+    const mascaraWhatsApp = (valor: string): string => {
+        const d = valor.replace(/\D/g, '').slice(0, 11);
+        if (d.length <= 2)  return d.length ? `(${d}` : '';
+        if (d.length <= 7)  return `(${d.slice(0,2)}) ${d.slice(2)}`;
+        if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+        return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+    };
+
+    const handleWhatsApp = (e: Event) => {
+        const input = e.target as HTMLInputElement;
+        const masked = mascaraWhatsApp(input.value);
+        formData.whatsapp = masked;
+        input.value = masked;
+    };
 
     type Genero    = 'MASCULINO' | 'FEMININO' | 'NAO_BINARIO' | 'OUTRO';
     type Interesse = 'HOMENS' | 'MULHERES' | 'TODOS' | 'NAO_DEFINIDO';
@@ -236,7 +253,15 @@
                 <div class="step-body">
                     <InputField type="text"  label="Nome"               placeholder="Nome completo"  bind:value={formData.nome}     error={errors.nome}     required autocomplete="name" />
                     <InputField type="email" label="E-mail"             placeholder="seu@email.com"  bind:value={formData.email}    error={errors.email}    required readonly autocomplete="email" />
-                    <InputField type="text"  label="Curso"              placeholder="Medicina..."    bind:value={formData.curso} />
+                    <div class="select-field">
+                        <label class="select-label" for="curso">Curso</label>
+                        <div class="select-wrap">
+                            <select id="curso" bind:value={formData.curso} class="select-el">
+                                <option value="">Selecione seu curso...</option>
+                                {#each CURSOS as c (c)}<option value={c}>{c}</option>{/each}
+                            </select>
+                        </div>
+                    </div>
                     <InputField type="date"  label="Data de Nascimento" bind:value={formData.dataNasc} error={errors.dataNasc} required />
 
                     <div class="row-2">
@@ -278,7 +303,21 @@
                         <span>Suas redes sociais só ficam visíveis para quem tiver <strong>match</strong> com você. Tudo é opcional.</span>
                     </div>
                     <div class="social-field"><span class="social-icon" aria-hidden="true">📷</span><InputField type="text" label="Instagram" placeholder="@usuario"         bind:value={formData.instagram} autocomplete="off" /></div>
-                    <div class="social-field"><span class="social-icon social-icon--green" aria-hidden="true">💬</span><InputField type="tel"  label="WhatsApp"  placeholder="(00) 00000-0000" bind:value={formData.whatsapp}  autocomplete="tel" /></div>
+                    <div class="social-field"><span class="social-icon social-icon--green" aria-hidden="true">💬</span>
+                        <div class="input-wrap">
+                            <label class="select-label" for="whatsapp">WhatsApp</label>
+                            <input
+                                id="whatsapp"
+                                type="tel"
+                                placeholder="(00) 00000-0000"
+                                value={formData.whatsapp}
+                                on:input={handleWhatsApp}
+                                maxlength="15"
+                                class="masked-input"
+                                autocomplete="tel"
+                            />
+                        </div>
+                    </div>
                     <div class="social-field"><span class="social-icon social-icon--blue"  aria-hidden="true">✈️</span><InputField type="text" label="Telegram"  placeholder="@usuario"         bind:value={formData.telegram}  autocomplete="off" /></div>
                 </div>
             {/if}
@@ -442,6 +481,9 @@
     .social-icon { width: 2.4rem; height: 2.4rem; border-radius: 9px; background: rgba(100,116,139,.1); display: flex; align-items: center; justify-content: center; margin-bottom: .85rem; flex-shrink: 0; font-size: 1.1rem; }
     .social-icon--green { background: rgba(37,211,102,.1); }
     .social-icon--blue  { background: rgba(0,136,204,.1); }
+    .input-wrap { flex: 1; display: flex; flex-direction: column; gap: .28rem; }
+    .masked-input { width:100%;padding:.68rem .85rem;font-family:'Plus Jakarta Sans',sans-serif;font-size:.87rem;color:var(--ink,#0F1624);background:rgba(255,255,255,.65);border:1.5px solid rgba(100,116,139,.22);border-radius:9px;outline:none;transition:border-color .2s,box-shadow .2s; }
+    .masked-input:focus{border-color:var(--primary,#4F46E5);box-shadow:0 0 0 3px rgba(79,70,229,.1);}
 
     .tags-loading { text-align: center; padding: 1.5rem 0; color: var(--muted, #64748B); }
     .tags-header  { display: flex; justify-content: flex-end; margin-bottom: .5rem; }

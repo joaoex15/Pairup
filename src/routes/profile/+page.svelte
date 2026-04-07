@@ -11,6 +11,23 @@
     import InputField from '$lib/components/login/InputField.svelte';
     import FotosUploader from '$lib/components/FotosUploader.svelte';
     import { validateAge, handleApiError, normalizarData } from '$lib/utils/errorUtils';
+    import { CURSOS } from '$lib/data/cursos';
+
+    // Máscara WhatsApp: (XX) XXXXX-XXXX
+    const mascaraWhatsApp = (valor: string): string => {
+        const d = valor.replace(/\D/g, '').slice(0, 11);
+        if (d.length <= 2)  return d.length ? `(${d}` : '';
+        if (d.length <= 7)  return `(${d.slice(0,2)}) ${d.slice(2)}`;
+        if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+        return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+    };
+
+    const handleWhatsApp = (e: Event) => {
+        const input = e.target as HTMLInputElement;
+        const masked = mascaraWhatsApp(input.value);
+        formData.whatsapp = masked;
+        input.value = masked;
+    };
 
     type Genero    = 'MASCULINO' | 'FEMININO' | 'NAO_BINARIO' | 'OUTRO';
     type Interesse = 'HOMENS' | 'MULHERES' | 'TODOS' | 'NAO_DEFINIDO';
@@ -258,7 +275,15 @@
                 <h3 class="section-title"><span>👤</span> Informações Pessoais</h3>
                 <InputField type="text"  label="Nome"               placeholder="Nome completo"  bind:value={formData.nome}     error={errors.nome}     required />
                 <InputField type="email" label="E-mail"             placeholder="seu@email.com"  bind:value={formData.email}    readonly />
-                <InputField type="text"  label="Curso"              placeholder="Medicina..."    bind:value={formData.curso} />
+                <div class="select-field">
+                    <label class="select-label" for="curso">Curso</label>
+                    <div class="select-wrap">
+                        <select id="curso" bind:value={formData.curso} class="select-el">
+                            <option value="">Selecione seu curso...</option>
+                            {#each CURSOS as c (c)}<option value={c}>{c}</option>{/each}
+                        </select>
+                    </div>
+                </div>
                 <InputField type="date"  label="Data de Nascimento" bind:value={formData.dataNasc} error={errors.dataNasc} required />
 
                 <div class="row-2">
@@ -332,7 +357,18 @@
                 </div>
                 <div class="social-field">
                     <span class="social-icon social-icon--green">💬</span>
-                    <InputField type="text" label="WhatsApp"  placeholder="(00) 00000-0000" bind:value={formData.whatsapp} />
+                    <div class="input-wrap">
+                        <label class="select-label" for="whatsapp">WhatsApp</label>
+                        <input
+                            id="whatsapp"
+                            type="tel"
+                            placeholder="(00) 00000-0000"
+                            value={formData.whatsapp}
+                            on:input={handleWhatsApp}
+                            maxlength="15"
+                            class="masked-input"
+                        />
+                    </div>
                 </div>
                 <div class="social-field">
                     <span class="social-icon social-icon--blue">✈️</span>
@@ -447,6 +483,9 @@
     .social-icon{width:2.4rem;height:2.4rem;border-radius:9px;background:rgba(138,127,121,.1);display:flex;align-items:center;justify-content:center;margin-bottom:.85rem;flex-shrink:0;font-size:1.1rem;}
     .social-icon--green{background:rgba(37,211,102,.1);}
     .social-icon--blue{background:rgba(0,136,204,.1);}
+    .input-wrap { flex: 1; display: flex; flex-direction: column; gap: .28rem; }
+    .masked-input { width:100%;padding:.68rem .85rem;font-family:'DM Sans',sans-serif;font-size:.87rem;color:var(--ink,#1A1410);background:rgba(255,255,255,.65);border:1.5px solid rgba(138,127,121,.22);border-radius:9px;outline:none;transition:border-color .2s,box-shadow .2s; }
+    .masked-input:focus{border-color:var(--rose,#D94F6B);box-shadow:0 0 0 3px rgba(217,79,107,.1);}
     .footer{background:rgba(250,247,242,.92);backdrop-filter:blur(12px);border-top:1px solid var(--border,rgba(201,169,110,.22));padding:.85rem 1rem;flex-shrink:0;}
     .footer-inner{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:.5rem;}
     .btn-save{width:100%;padding:.8rem;border:none;border-radius:12px;background:linear-gradient(135deg,var(--rose,#D94F6B),#C0394F);color:#fff;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(217,79,107,.3);display:flex;align-items:center;justify-content:center;gap:.45rem;transition:opacity .2s;}
