@@ -11,6 +11,7 @@
     interface PessoaView extends PessoaPerfilDTO {
         fotos:   string[];
         tagObjs: TagResponse[];
+        idade:   number;  // ✅ Adicionar campo idade
     }
 
     let todasPessoas: PessoaView[] = [];
@@ -29,6 +30,19 @@
     let availableTags: TagResponse[] = [];
     let tagsLoading    = true;
     let searchTagTerm  = '';
+
+    // ✅ Função para calcular idade a partir da data de nascimento
+    const calcularIdade = (dataNasc: string): number => {
+        if (!dataNasc) return 0;
+        const nasc = new Date(dataNasc);
+        const hoje = new Date();
+        let idade = hoje.getFullYear() - nasc.getFullYear();
+        const mesDiff = hoje.getMonth() - nasc.getMonth();
+        if (mesDiff < 0 || (mesDiff === 0 && hoje.getDate() < nasc.getDate())) {
+            idade--;
+        }
+        return idade;
+    };
 
     // Extrai URLs de foto do perfil da PessoaPerfilDTO
     const fotosParaPessoa = (p: PessoaPerfilDTO): string[] => {
@@ -113,6 +127,7 @@
                         ...p,
                         tagObjs: availableTags.filter(t => (p.tags ?? []).includes(t.id)),
                         fotos:   fotosParaPessoa(p),
+                        idade:   calcularIdade(p.dataNasc),  // ✅ Calcular idade
                     }));
                 aplicarFiltros();
             } else {
@@ -344,7 +359,13 @@
 
                         <div class="photo-gradient" aria-hidden="true"></div>
                         <div class="card-info-overlay">
-                            <h2 class="card-name">{pessoaAtual.nome}</h2>
+                            <!-- ✅ Exibir nome com idade -->
+                            <h2 class="card-name">
+                                {pessoaAtual.nome}
+                                {#if pessoaAtual.idade > 0}
+                                    <span class="card-age">{pessoaAtual.idade} anos</span>
+                                {/if}
+                            </h2>
                             {#if pessoaAtual.curso}<p class="card-course">{pessoaAtual.curso}</p>{/if}
                             {#if pessoaAtual.tagObjs && pessoaAtual.tagObjs.length > 0}
                                 <div class="card-tags" aria-label="Interesses">
@@ -460,7 +481,18 @@
     @media (hover: none) { .foto-counter { display: block; } .photo-bars { display: none; } }
     .photo-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 65%; background: linear-gradient(to top, rgba(10,6,4,.88) 0%, transparent 100%); }
     .card-info-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 1.25rem 1.1rem 1rem; }
-    .card-name   { font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: -.02em; margin-bottom: .2rem; }
+    .card-name   { font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: -.02em; margin-bottom: .2rem; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; }
+    /* ✅ Estilo para a idade */
+    .card-age { 
+        font-size: 0.9rem; 
+        font-weight: 500; 
+        color: rgba(255,255,255,0.9); 
+        background: rgba(0,0,0,0.35);
+        padding: 0.2rem 0.7rem;
+        border-radius: 30px;
+        display: inline-block;
+        backdrop-filter: blur(4px);
+    }
     .card-course { font-size: .78rem; color: rgba(255,255,255,.7); margin-bottom: .55rem; }
     .card-tags   { display: flex; flex-wrap: wrap; gap: .35rem; }
     .card-tag    { font-size: .67rem; padding: .22rem .65rem; border-radius: 20px; background: rgba(255,255,255,.15); backdrop-filter: blur(4px); color: #fff; border: 1px solid rgba(255,255,255,.25); }
