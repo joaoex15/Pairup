@@ -20,7 +20,7 @@
                     <span class="logo-cap">✨</span>
                 </div>
                 <div class="logo-text-wrap">
-                    <span class="brand-name">PairUp</span>
+                    <span class="brand-name">UneSe</span>
                     <span class="brand-version">beta</span>
                 </div>
             </div>

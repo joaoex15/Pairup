@@ -82,7 +82,7 @@
     <div class="screen" role="status" aria-live="polite">
         <div class="icon success-icon" aria-hidden="true">✓</div>
         <h1>Login realizado!</h1>
-        <p>Redirecionando para o PairUp...</p>
+        <p>Redirecionando para o UneSe...</p>
         <div class="progress-bar" aria-hidden="true"></div>
     </div>
 {:else}

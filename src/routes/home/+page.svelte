@@ -205,7 +205,7 @@
     <header class="header">
         <div class="header-logo">
             <span class="header-icon" aria-hidden="true">🎓</span>
-            <span class="header-brand">PairUp</span>
+            <span class="header-brand">UneSe</span>
         </div>
         <nav class="header-nav" aria-label="Navegação principal">
             <button class="nav-btn" class:nav-btn--active={filtroAtivo} on:click={() => showFilters = !showFilters} aria-label="Filtros{filtroAtivo ? ` (${filtroTags.length} ativo${filtroTags.length > 1 ? 's' : ''})` : ''}" aria-expanded={showFilters}>
