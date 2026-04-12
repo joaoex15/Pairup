@@ -61,10 +61,6 @@
     };
 </script>
 
-<div class="form-header">
-    <h3 class="form-title">Criar conta</h3>
-    <p class="form-sub">Comece sua jornada no PairUp</p>
-</div>
 
 <form on:submit={handleSubmit} novalidate aria-label="Formulário de cadastro">
     <InputField
