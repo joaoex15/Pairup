@@ -2,6 +2,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
+    import { authStore } from '$lib/stores/authStore';
     import {
         apiGetPessoas, apiGetMyProfile, apiGetMyMatches,
         apiDarLike, apiGetTagsAtivas,
@@ -11,7 +12,7 @@
     interface PessoaView extends PessoaPerfilDTO {
         fotos:   string[];
         tagObjs: TagResponse[];
-        idade:   number;  // ✅ Adicionar campo idade
+        idade:   number;
     }
 
     let todasPessoas: PessoaView[] = [];
@@ -31,20 +32,16 @@
     let tagsLoading    = true;
     let searchTagTerm  = '';
 
-    // ✅ Função para calcular idade a partir da data de nascimento
     const calcularIdade = (dataNasc: string): number => {
         if (!dataNasc) return 0;
         const nasc = new Date(dataNasc);
         const hoje = new Date();
         let idade = hoje.getFullYear() - nasc.getFullYear();
         const mesDiff = hoje.getMonth() - nasc.getMonth();
-        if (mesDiff < 0 || (mesDiff === 0 && hoje.getDate() < nasc.getDate())) {
-            idade--;
-        }
+        if (mesDiff < 0 || (mesDiff === 0 && hoje.getDate() < nasc.getDate())) idade--;
         return idade;
     };
 
-    // Extrai URLs de foto do perfil da PessoaPerfilDTO
     const fotosParaPessoa = (p: PessoaPerfilDTO): string[] => {
         const urls: string[] = [];
         if (p.fotoPerfilUrl) urls.push(p.fotoPerfilUrl);
@@ -94,32 +91,53 @@
 
     const limparFiltros = () => { filtroTags = []; aplicarFiltros(); };
 
-    $: filtroAtivo    = filtroTags.length > 0;
+    $: filtroAtivo     = filtroTags.length > 0;
     $: tagsDisponiveis = availableTags.filter(t =>
         t.nome.toLowerCase().includes(searchTagTerm.toLowerCase())
     );
-    const isTagFiltro    = (id: string) => filtroTags.some(t => t.id === id);
+    const isTagFiltro     = (id: string) => filtroTags.some(t => t.id === id);
     const toggleFiltroTag = (tag: TagResponse) => {
         filtroTags = isTagFiltro(tag.id)
             ? filtroTags.filter(t => t.id !== tag.id)
             : [...filtroTags, tag];
     };
 
+    // ✅ onMount único: verifica auth → verifica perfil → carrega dados
     onMount(async () => {
-        const tagsRes = await apiGetTagsAtivas();
-        if (tagsRes.data) availableTags = tagsRes.data;
-        tagsLoading = false;
+        const unsub = authStore.subscribe(async state => {
+            if (state.isLoading) return;
 
-        try {
-            const meRes = await apiGetMyProfile();
-            if (!meRes.data) { await goto('/onboarding'); return; }
-            minhaPessoaId = meRes.data.id;
-            minhaPessoa   = meRes.data;
+            // 1. Não autenticado → login
+            if (!state.isAuthenticated) {
+                await goto('/');
+                return;
+            }
 
-            const matchRes = await apiGetMyMatches(0, 1);
-            if (matchRes.data) matchCount = matchRes.data.totalElements;
+            // 2. Autenticado mas sem perfil → onboarding
+            try {
+                const meRes = await apiGetMyProfile();
+                if (!meRes.data || meRes.error) {
+                    await goto('/onboarding');
+                    return;
+                }
+                minhaPessoaId = meRes.data.id;
+                minhaPessoa   = meRes.data;
+            } catch {
+                await goto('/onboarding');
+                return;
+            }
 
-            const pesRes = await apiGetPessoas({ size: 20 });
+            // 3. Carrega tags, matches e pessoas
+            const [tagsRes, matchRes, pesRes] = await Promise.all([
+                apiGetTagsAtivas(),
+                apiGetMyMatches(0, 1),
+                apiGetPessoas({ size: 20 }),
+            ]);
+
+            if (tagsRes.data)  availableTags = tagsRes.data;
+            if (matchRes.data) matchCount    = matchRes.data.totalElements;
+            tagsLoading = false;
+
             if (pesRes.data) {
                 todasPessoas = (pesRes.data.content ?? [])
                     .filter(p => p.id !== minhaPessoaId)
@@ -127,18 +145,16 @@
                         ...p,
                         tagObjs: availableTags.filter(t => (p.tags ?? []).includes(t.id)),
                         fotos:   fotosParaPessoa(p),
-                        idade:   calcularIdade(p.dataNasc),  // ✅ Calcular idade
+                        idade:   calcularIdade(p.dataNasc),
                     }));
                 aplicarFiltros();
             } else {
                 currentIndex = -1;
             }
-        } catch (e) {
-            console.error('[home] erro ao carregar:', e);
-            currentIndex = -1;
-        } finally {
+
             loading = false;
-        }
+        });
+        return unsub;
     });
 
     $: pessoaAtual = currentIndex >= 0 ? (pessoas[currentIndex] ?? null) : null;
@@ -223,7 +239,9 @@
             <span class="header-brand">UneSe</span>
         </div>
         <nav class="header-nav" aria-label="Navegação principal">
-            <button class="nav-btn" class:nav-btn--active={filtroAtivo} on:click={() => showFilters = !showFilters} aria-label="Filtros{filtroAtivo ? ` (${filtroTags.length} ativo${filtroTags.length > 1 ? 's' : ''})` : ''}" aria-expanded={showFilters}>
+            <button class="nav-btn" class:nav-btn--active={filtroAtivo} on:click={() => showFilters = !showFilters}
+                aria-label="Filtros{filtroAtivo ? ` (${filtroTags.length} ativo${filtroTags.length > 1 ? 's' : ''})` : ''}"
+                aria-expanded={showFilters}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 12h10M11 20h2"/>
                 </svg>
@@ -243,6 +261,7 @@
         </nav>
     </header>
 
+    <!-- Painel de filtros -->
     {#if showFilters}
         <div class="filter-overlay" on:click={() => showFilters = false} aria-hidden="true"></div>
         <div class="filter-panel" role="dialog" aria-label="Filtros de busca" aria-modal="true">
@@ -251,13 +270,17 @@
                 <div class="filter-header-actions">
                     {#if filtroAtivo}<button class="filter-clear" on:click={limparFiltros}>Limpar</button>{/if}
                     <button class="filter-close" on:click={() => showFilters = false} aria-label="Fechar filtros">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
                     </button>
                 </div>
             </div>
             {#if minhaPessoa?.genero && minhaPessoa?.interesse}
                 <div class="filter-compat-info">
-                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
                     Filtro de compatibilidade aplicado automaticamente.
                 </div>
             {/if}
@@ -267,7 +290,9 @@
                 {#if filtroTags.length > 0}
                     <div class="filter-selected-chips">
                         {#each filtroTags as tag (tag.id)}
-                            <button type="button" class="chip chip-on" on:click={() => toggleFiltroTag(tag)} aria-label="Remover filtro {tag.nome}">{tag.nome} ✕</button>
+                            <button type="button" class="chip chip-on" on:click={() => toggleFiltroTag(tag)} aria-label="Remover filtro {tag.nome}">
+                                {tag.nome} ✕
+                            </button>
                         {/each}
                     </div>
                 {/if}
@@ -275,11 +300,15 @@
                     <div class="tags-loading" aria-live="polite">Carregando...</div>
                 {:else}
                     <div class="filter-search-wrap">
-                        <input type="text" placeholder="Buscar interesse..." bind:value={searchTagTerm} class="filter-search-input" aria-label="Buscar interesse para filtro" />
+                        <input type="text" placeholder="Buscar interesse..." bind:value={searchTagTerm}
+                            class="filter-search-input" aria-label="Buscar interesse para filtro" />
                     </div>
                     <div class="filter-tags-pool">
                         {#each tagsDisponiveis as tag (tag.id)}
-                            <button type="button" class="chip" class:chip-on={isTagFiltro(tag.id)} on:click={() => toggleFiltroTag(tag)} aria-pressed={isTagFiltro(tag.id)}>{tag.nome}</button>
+                            <button type="button" class="chip" class:chip-on={isTagFiltro(tag.id)}
+                                on:click={() => toggleFiltroTag(tag)} aria-pressed={isTagFiltro(tag.id)}>
+                                {tag.nome}
+                            </button>
                         {/each}
                         {#if tagsDisponiveis.length === 0}<p class="no-results">Nenhum interesse encontrado</p>{/if}
                     </div>
@@ -306,14 +335,16 @@
                 {#if filtroAtivo}
                     <button class="btn-reload" on:click={limparFiltros}>Limpar filtros</button>
                 {:else}
-                    <button class="btn-reload" on:click={() => { window.location.reload(); }}>Recarregar</button>
+                    <button class="btn-reload" on:click={() => window.location.reload()}>Recarregar</button>
                 {/if}
             </div>
 
         {:else}
             {#if filtroAtivo}
                 <div class="active-filters-bar" aria-label="Filtros ativos: {filtroTags.map(t => t.nome).join(', ')}">
-                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L13 10.414V17a1 1 0 01-.553.894l-4-2A1 1 0 018 15v-4.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd"/></svg>
+                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L13 10.414V17a1 1 0 01-.553.894l-4-2A1 1 0 018 15v-4.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd"/>
+                    </svg>
                     <span>{filtroTags.map(t => t.nome).join(', ')}</span>
                     <button on:click={limparFiltros} aria-label="Remover filtros">✕</button>
                 </div>
@@ -333,6 +364,7 @@
                 <div class="overlay-dislike" class:visible={swipeDir === 'dislike' || (isDragging && dragX < -40)} aria-hidden="true">PASSAR ✕</div>
 
                 <div class="card">
+                    <!-- Foto -->
                     <div class="card-photo">
                         {#if pessoaAtual.fotos && pessoaAtual.fotos.length > 0}
                             <img src={pessoaAtual.fotos[fotoIndex]} alt="Foto de {pessoaAtual.nome}" draggable="false" />
@@ -343,15 +375,23 @@
                         {/if}
 
                         {#if totalFotos > 1}
-                            <button class="foto-btn foto-btn--prev" on:click|stopPropagation={fotoAnterior} disabled={fotoIndex === 0} aria-label="Foto anterior">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                            <button class="foto-btn foto-btn--prev" on:click|stopPropagation={fotoAnterior}
+                                disabled={fotoIndex === 0} aria-label="Foto anterior">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                                </svg>
                             </button>
-                            <button class="foto-btn foto-btn--next" on:click|stopPropagation={proximaFoto} disabled={fotoIndex === totalFotos - 1} aria-label="Próxima foto">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                            <button class="foto-btn foto-btn--next" on:click|stopPropagation={proximaFoto}
+                                disabled={fotoIndex === totalFotos - 1} aria-label="Próxima foto">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                                </svg>
                             </button>
                             <div class="photo-bars" aria-hidden="true">
                                 {#each Array(totalFotos) as _, i (i)}
-                                    <div class="photo-bar"><div class="photo-bar-fill" class:full={i < fotoIndex} class:active={i === fotoIndex}></div></div>
+                                    <div class="photo-bar">
+                                        <div class="photo-bar-fill" class:full={i < fotoIndex} class:active={i === fotoIndex}></div>
+                                    </div>
                                 {/each}
                             </div>
                             <div class="foto-counter" aria-hidden="true">{fotoIndex + 1}/{totalFotos}</div>
@@ -359,7 +399,6 @@
 
                         <div class="photo-gradient" aria-hidden="true"></div>
                         <div class="card-info-overlay">
-                            <!-- ✅ Exibir nome com idade -->
                             <h2 class="card-name">
                                 {pessoaAtual.nome}
                                 {#if pessoaAtual.idade > 0}
@@ -376,6 +415,8 @@
                             {/if}
                         </div>
                     </div>
+
+                    <!-- ✅ Descrição exibida abaixo da foto -->
                     {#if pessoaAtual.descricao}
                         <div class="card-desc">{pessoaAtual.descricao}</div>
                     {/if}
@@ -386,10 +427,14 @@
 
             <div class="action-row">
                 <button class="action-btn action-dislike" on:click={dislike} aria-label="Passar — não tenho interesse">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
                 </button>
                 <button class="action-btn action-like" on:click={like} aria-label="Curtir {pessoaAtual.nome}">
-                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                    </svg>
                 </button>
             </div>
 
@@ -402,6 +447,8 @@
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     :global(body) { background: var(--bg, #F4F6FB); font-family: 'Plus Jakarta Sans', sans-serif; }
     .page { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg, #F4F6FB); }
+
+    /* Header */
     .header { display: flex; justify-content: space-between; align-items: center; padding: .9rem 1.5rem; background: rgba(244,246,251,.9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border, rgba(79,70,229,.15)); position: sticky; top: 0; z-index: 20; }
     .header-logo { display: flex; align-items: center; gap: .4rem; }
     .header-icon { font-size: 1.3rem; animation: pk 3s ease-in-out infinite; }
@@ -414,6 +461,8 @@
     .nav-btn svg { width: 22px; height: 22px; display: block; }
     .nav-badge { position: absolute; top: 0; right: 0; background: var(--primary, #4F46E5); color: #fff; font-size: .6rem; font-weight: 600; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg, #F4F6FB); }
     .nav-badge--filter { background: #f59e0b; }
+
+    /* Filtros */
     .filter-overlay { position: fixed; inset: 0; z-index: 29; background: rgba(15,22,36,.3); backdrop-filter: blur(2px); animation: fade-in .2s ease; }
     @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
     .filter-panel { position: fixed; top: 58px; right: 0; left: 0; z-index: 30; background: #fff; border-bottom: 1px solid var(--border, rgba(79,70,229,.15)); border-radius: 0 0 20px 20px; box-shadow: 0 8px 32px rgba(15,22,36,.12); padding: 1rem 1.25rem 1.25rem; max-height: 70vh; overflow-y: auto; animation: slide-down .25s cubic-bezier(.22,1,.36,1); max-width: 480px; margin: 0 auto; }
@@ -441,10 +490,14 @@
     .chip { padding: .28rem .75rem; border-radius: 20px; border: 1.5px solid rgba(100,116,139,.22); background: #fff; color: var(--ink, #0F1624); font-family: 'Plus Jakarta Sans', sans-serif; font-size: .75rem; cursor: pointer; white-space: nowrap; transition: all .15s; }
     .chip:hover { border-color: var(--primary, #4F46E5); color: var(--primary, #4F46E5); }
     .chip-on { background: var(--primary, #4F46E5); border-color: var(--primary, #4F46E5); color: #fff; }
+
+    /* Barra de filtros ativos */
     .active-filters-bar { display: flex; align-items: center; gap: .5rem; background: rgba(79,70,229,.08); border: 1px solid rgba(79,70,229,.2); border-radius: 20px; padding: .35rem .75rem; font-size: .72rem; color: var(--primary, #4F46E5); max-width: 380px; width: 100%; margin-bottom: .75rem; }
     .active-filters-bar svg { width: 13px; height: 13px; flex-shrink: 0; }
     .active-filters-bar span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .active-filters-bar button { background: none; border: none; cursor: pointer; color: var(--primary, #4F46E5); font-size: .75rem; padding: 0; flex-shrink: 0; }
+
+    /* Main */
     .main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.25rem 1rem 1.5rem; gap: 1rem; }
     .loading-wrap { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
     .loading-ring { width: 44px; height: 44px; border: 3px solid rgba(79,70,229,.15); border-top-color: var(--primary, #4F46E5); border-radius: 50%; animation: spin .8s linear infinite; }
@@ -454,6 +507,8 @@
     .empty-title { font-size: 1.4rem; font-weight: 700; color: var(--ink, #0F1624); }
     .empty-sub   { font-size: .82rem; color: var(--muted, #64748B); max-width: 240px; text-align: center; }
     .btn-reload  { margin-top: .5rem; padding: .72rem 1.75rem; border: none; border-radius: 12px; background: linear-gradient(135deg, var(--primary, #4F46E5), var(--accent, #7C3AED)); color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; font-size: .88rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 16px rgba(79,70,229,.3); transition: opacity .2s; }
+
+    /* Card */
     .card-wrap { width: 100%; max-width: 380px; position: relative; will-change: transform; touch-action: pan-y; }
     .card-wrap.swipe-like    { transform: translateX(120vw) rotate(22deg) !important; opacity: 0; }
     .card-wrap.swipe-dislike { transform: translateX(-120vw) rotate(-22deg) !important; opacity: 0; }
@@ -481,26 +536,21 @@
     @media (hover: none) { .foto-counter { display: block; } .photo-bars { display: none; } }
     .photo-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 65%; background: linear-gradient(to top, rgba(10,6,4,.88) 0%, transparent 100%); }
     .card-info-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 1.25rem 1.1rem 1rem; }
-    .card-name   { font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: -.02em; margin-bottom: .2rem; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; }
-    /* ✅ Estilo para a idade */
-    .card-age { 
-        font-size: 0.9rem; 
-        font-weight: 500; 
-        color: rgba(255,255,255,0.9); 
-        background: rgba(0,0,0,0.35);
-        padding: 0.2rem 0.7rem;
-        border-radius: 30px;
-        display: inline-block;
-        backdrop-filter: blur(4px);
-    }
+    .card-name { font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: -.02em; margin-bottom: .2rem; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; }
+    .card-age { font-size: 0.9rem; font-weight: 500; color: rgba(255,255,255,0.9); background: rgba(0,0,0,0.35); padding: 0.2rem 0.7rem; border-radius: 30px; display: inline-block; backdrop-filter: blur(4px); }
     .card-course { font-size: .78rem; color: rgba(255,255,255,.7); margin-bottom: .55rem; }
     .card-tags   { display: flex; flex-wrap: wrap; gap: .35rem; }
     .card-tag    { font-size: .67rem; padding: .22rem .65rem; border-radius: 20px; background: rgba(255,255,255,.15); backdrop-filter: blur(4px); color: #fff; border: 1px solid rgba(255,255,255,.25); }
     .card-tag--match { background: var(--primary, #4F46E5); border-color: var(--primary, #4F46E5); }
-    .card-desc   { padding: .85rem 1.1rem; font-size: .82rem; color: var(--muted, #64748B); line-height: 1.55; border-top: 1px solid rgba(100,116,139,.1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .foto-hint   { font-size: .67rem; color: rgba(100,116,139,.5); letter-spacing: .02em; margin-top: -.25rem; }
-    .swipe-hint  { font-size: .68rem; color: rgba(100,116,139,.45); letter-spacing: .03em; }
+
+    /* ✅ Descrição */
+    .card-desc { padding: .85rem 1.1rem; font-size: .82rem; color: var(--muted, #64748B); line-height: 1.55; border-top: 1px solid rgba(100,116,139,.1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+    .foto-hint  { font-size: .67rem; color: rgba(100,116,139,.5); letter-spacing: .02em; margin-top: -.25rem; }
+    .swipe-hint { font-size: .68rem; color: rgba(100,116,139,.45); letter-spacing: .03em; }
     @media (hover: hover) { .foto-hint { display: none; } }
+
+    /* Ações */
     .action-row  { display: flex; gap: 1.5rem; align-items: center; }
     .action-btn  { border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform .15s, box-shadow .2s; -webkit-tap-highlight-color: transparent; }
     .action-btn:hover  { transform: scale(1.1); }
