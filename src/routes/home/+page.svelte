@@ -5,7 +5,7 @@
     import { authStore } from '$lib/stores/authStore';
     import {
         apiGetPessoas, apiGetMyProfile, apiGetMyMatches,
-        apiDarLike, apiGetTagsAtivas,
+        apiDarLike, apiGetTagsAtivas, apiGetLikesDados, apiGetLikesRecebidos,
         type PessoaPerfilDTO, type TagResponse
     } from '$lib/services/api';
 
@@ -25,6 +25,11 @@
     let minhaPessoaId = '';
     let minhaPessoa:  PessoaPerfilDTO | null = null;
     let avaliadosIds  = new Set<string>();
+
+    // Sets para filtrar pessoas já interagidas
+    let matchedIds   = new Set<string>();
+    let likedByIds   = new Set<string>();
+    let likedMeIds   = new Set<string>();
 
     let showFilters    = false;
     let filtroTags:    TagResponse[] = [];
@@ -78,9 +83,16 @@
         return filtroTags.some(ft => ids.includes(ft.id));
     };
 
+    const jaTeveInteracao = (pessoaId: string): boolean => {
+        return matchedIds.has(pessoaId) || 
+               likedByIds.has(pessoaId) || 
+               likedMeIds.has(pessoaId);
+    };
+
     const aplicarFiltros = () => {
-        pessoas      = todasPessoas.filter(p =>
+        pessoas = todasPessoas.filter(p =>
             !avaliadosIds.has(p.id) &&
+            !jaTeveInteracao(p.id) &&
             (!minhaPessoa || compativeis(minhaPessoa, p)) &&
             temTagEmComum(p)
         );
@@ -102,18 +114,15 @@
             : [...filtroTags, tag];
     };
 
-    // ✅ onMount único: verifica auth → verifica perfil → carrega dados
     onMount(async () => {
         const unsub = authStore.subscribe(async state => {
             if (state.isLoading) return;
 
-            // 1. Não autenticado → login
             if (!state.isAuthenticated) {
                 await goto('/');
                 return;
             }
 
-            // 2. Autenticado mas sem perfil → onboarding
             try {
                 const meRes = await apiGetMyProfile();
                 if (!meRes.data || meRes.error) {
@@ -127,16 +136,39 @@
                 return;
             }
 
-            // 3. Carrega tags, matches e pessoas
-            const [tagsRes, matchRes, pesRes] = await Promise.all([
+            const [tagsRes, matchRes, likesDadosRes, likesRecebidosRes, pesRes] = await Promise.all([
                 apiGetTagsAtivas(),
-                apiGetMyMatches(0, 1),
-                apiGetPessoas({ size: 20 }),
+                apiGetMyMatches(0, 100),
+                apiGetLikesDados(0, 100),
+                apiGetLikesRecebidos(0, 100),
+                apiGetPessoas({ size: 100 }),
             ]);
 
-            if (tagsRes.data)  availableTags = tagsRes.data;
-            if (matchRes.data) matchCount    = matchRes.data.totalElements;
+            if (tagsRes.data) availableTags = tagsRes.data;
             tagsLoading = false;
+
+            if (matchRes.data) {
+                matchCount = matchRes.data.totalElements;
+                const matches = matchRes.data.content ?? [];
+                for (const m of matches) {
+                    const outroId = m.pessoaId1 === minhaPessoaId ? m.pessoaId2 : m.pessoaId1;
+                    matchedIds.add(outroId);
+                }
+            }
+
+            if (likesDadosRes.data) {
+                const likesDados = likesDadosRes.data.content ?? [];
+                for (const l of likesDados) {
+                    if (l.ativo) likedByIds.add(l.pessoaDestinoId);
+                }
+            }
+
+            if (likesRecebidosRes.data) {
+                const likesRecebidos = likesRecebidosRes.data.content ?? [];
+                for (const l of likesRecebidos) {
+                    if (l.ativo) likedMeIds.add(l.pessoaOrigemId);
+                }
+            }
 
             if (pesRes.data) {
                 todasPessoas = (pesRes.data.content ?? [])
@@ -171,18 +203,25 @@
     const like = async () => {
         if (!pessoaAtual || swipeDir) return;
         swipeDir = 'like';
-        avaliadosIds = new Set([...avaliadosIds, pessoaAtual.id]);
+        avaliadosIds.add(pessoaAtual.id);
+        likedByIds.add(pessoaAtual.id);
+        
         try {
             const res = await apiDarLike(pessoaAtual.id);
-            if (res.data?.match) matchCount++;
-        } catch (e) { console.error('[like]', e); }
+            if (res.data?.match) {
+                matchCount++;
+                matchedIds.add(pessoaAtual.id);
+            }
+        } catch (e) { 
+            console.error('[like]', e); 
+        }
         avancar();
     };
 
     const dislike = () => {
         if (!pessoaAtual || swipeDir) return;
         swipeDir = 'dislike';
-        avaliadosIds = new Set([...avaliadosIds, pessoaAtual.id]);
+        avaliadosIds.add(pessoaAtual.id);
         avancar();
     };
 
@@ -196,6 +235,7 @@
         touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
         touchStartTime = Date.now(); isDragging = false; dragX = 0;
     };
+
     const onTouchMove = (e: TouchEvent) => {
         const dx = e.touches[0].clientX - touchStartX;
         const dy = e.touches[0].clientY - touchStartY;
@@ -203,6 +243,7 @@
             isDragging = true; dragX = dx; e.preventDefault();
         }
     };
+
     const onTouchEnd = (e: TouchEvent) => {
         const dx  = e.changedTouches[0].clientX - touchStartX;
         const dur = Date.now() - touchStartTime;
@@ -364,7 +405,6 @@
                 <div class="overlay-dislike" class:visible={swipeDir === 'dislike' || (isDragging && dragX < -40)} aria-hidden="true">PASSAR ✕</div>
 
                 <div class="card">
-                    <!-- Foto -->
                     <div class="card-photo">
                         {#if pessoaAtual.fotos && pessoaAtual.fotos.length > 0}
                             <img src={pessoaAtual.fotos[fotoIndex]} alt="Foto de {pessoaAtual.nome}" draggable="false" />
@@ -416,7 +456,6 @@
                         </div>
                     </div>
 
-                    <!-- ✅ Descrição exibida abaixo da foto -->
                     {#if pessoaAtual.descricao}
                         <div class="card-desc">{pessoaAtual.descricao}</div>
                     {/if}
@@ -542,10 +581,7 @@
     .card-tags   { display: flex; flex-wrap: wrap; gap: .35rem; }
     .card-tag    { font-size: .67rem; padding: .22rem .65rem; border-radius: 20px; background: rgba(255,255,255,.15); backdrop-filter: blur(4px); color: #fff; border: 1px solid rgba(255,255,255,.25); }
     .card-tag--match { background: var(--primary, #4F46E5); border-color: var(--primary, #4F46E5); }
-
-    /* ✅ Descrição */
     .card-desc { padding: .85rem 1.1rem; font-size: .82rem; color: var(--muted, #64748B); line-height: 1.55; border-top: 1px solid rgba(100,116,139,.1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-
     .foto-hint  { font-size: .67rem; color: rgba(100,116,139,.5); letter-spacing: .02em; margin-top: -.25rem; }
     .swipe-hint { font-size: .68rem; color: rgba(100,116,139,.45); letter-spacing: .03em; }
     @media (hover: hover) { .foto-hint { display: none; } }
