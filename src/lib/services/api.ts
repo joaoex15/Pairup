@@ -1,4 +1,7 @@
 // $lib/services/api.ts
+// ✅ ÚNICO arquivo de requisições.
+// ✅ Cada interface espelha EXATAMENTE o DTO Java correspondente.
+
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 
@@ -47,17 +50,29 @@ export type Interesse = 'HOMENS' | 'MULHERES' | 'TODOS' | 'NAO_DEFINIDO';
 
 // ─── Interfaces espelhando os DTOs Java ──────────────────────────────────────
 
+/**
+ * LoginRequestDTO { email: String, password: String }
+ * Usado em: POST /users/login
+ */
 export interface LoginRequest {
     email:    string;
     password: string;
 }
 
+/**
+ * Retorno de POST /users/login
+ * Backend: Map.of("token", token, "userId", user.getId(), "email", user.getEmail())
+ */
 export interface LoginResponse {
     token:  string;
     userId: string;
     email:  string;
 }
 
+/**
+ * Retorno de GET /users/me, PUT /users/me, POST /users
+ * Backend serializa User com password=null.
+ */
 export interface UserResponse {
     id:        string;
     email:     string;
@@ -65,6 +80,9 @@ export interface UserResponse {
     provider?: string;
 }
 
+/**
+ * Tag model — retornado por GET /tags e GET /tags/ativas
+ */
 export interface TagResponse {
     id:         string;
     nome:       string;
@@ -73,6 +91,10 @@ export interface TagResponse {
     ativa:      boolean;
 }
 
+/**
+ * ImagemUploadResponseDTO — retornado por POST /api/imagens/upload,
+ * DELETE /api/imagens/{id}, GET /api/imagens/minhas-imagens.
+ */
 export interface ImagemUploadResponse {
     id?:           string;
     url?:          string;
@@ -83,6 +105,9 @@ export interface ImagemUploadResponse {
     sucesso:       boolean;
 }
 
+/**
+ * Modelo Imagem serializado dentro de PessoaPerfilDTO e PessoaCompletaDTO.
+ */
 export interface ImagemResponse {
     id:            string;
     url:           string;
@@ -95,6 +120,14 @@ export interface ImagemResponse {
     ativa?:        boolean;
 }
 
+/**
+ * PessoaPerfilDTO — retornado por:
+ *   GET /pessoas                (Page<PessoaPerfilDTO>)
+ *   GET /pessoas/{id}/perfil    (PessoaPerfilDTO)
+ *
+ * NAO contem redes sociais (instagram/whatsapp/telegram).
+ * tags: List<String> — IDs das tags.
+ */
 export interface PessoaPerfilDTO {
     id:             string;
     nome:           string;
@@ -109,6 +142,11 @@ export interface PessoaPerfilDTO {
     fotoPerfilUrl?: string;
 }
 
+/**
+ * PessoaCompletaDTO — retornado por GET /pessoas/me (perfil proprio).
+ * Contem TUDO: dados pessoais + redes sociais + imagens + cienciaResponsabilidade.
+ * tags: List<String> (IDs).
+ */
 export interface PessoaCompletaDTO {
     id:                      string;
     nome:                    string;
@@ -127,6 +165,10 @@ export interface PessoaCompletaDTO {
     fotoPerfilUrl?:          string;
 }
 
+/**
+ * PessoaRedesSociaisDTO — retornado EXCLUSIVAMENTE por:
+ *   GET /matches/{matchId}/redes-sociais
+ */
 export interface PessoaRedesSociaisDTO {
     id?:        string;
     instagram?: string;
@@ -134,6 +176,12 @@ export interface PessoaRedesSociaisDTO {
     telegram?:  string;
 }
 
+/**
+ * Payload de POST /pessoas e PUT /pessoas/me.
+ * cienciaResponsabilidade: DEVE ser true no POST /pessoas.
+ * usuarioId: NAO enviar — controller seta via JWT.
+ * tags: string[] de IDs.
+ */
 export interface PessoaPayload {
     nome:                    string;
     email:                   string;
@@ -150,6 +198,9 @@ export interface PessoaPayload {
     tags?:                   string[];
 }
 
+/**
+ * Match model — retornado por GET /matches/meus (Page<Match>).
+ */
 export interface MatchResponse {
     id:        string;
     pessoaId1: string;
@@ -157,6 +208,9 @@ export interface MatchResponse {
     ativo:     boolean;
 }
 
+/**
+ * Like model — retornado por GET /likes/dados e GET /likes/recebidos.
+ */
 export interface LikeResponse {
     id:              string;
     pessoaOrigemId:  string;
@@ -164,11 +218,15 @@ export interface LikeResponse {
     ativo:           boolean;
 }
 
+/**
+ * Retorno de POST /likes?destinoId=...
+ */
 export interface LikeResultResponse {
     match:   boolean;
     message: string;
 }
 
+/** Wrapper de paginacao Spring Page<T> */
 export interface PageResponse<T> {
     content:       T[];
     totalElements: number;
@@ -177,42 +235,53 @@ export interface PageResponse<T> {
     size:          number;
 }
 
+/** Wrapper padrao de todas as respostas da camada api.ts */
 export interface ApiResponse<T = unknown> {
     data?:   T;
     error?:  string;
     status?: number;
 }
 
-// ─── Helpers de token ─────────────────────────────────────────────────────────
+// ─── Helpers de token (versões internas) ─────────────────────────────────────
 
-function getToken(): string | null {
+function getTokenInternal(): string | null {
     if (!browser) return null;
     try   { return localStorage.getItem('token'); }
     catch { return null; }
 }
 
-function setToken(token: string): void {
+function setTokenInternal(token: string): void {
     if (!browser) return;
     try   { localStorage.setItem('token', token); }
     catch (e) { console.error('[api] Falha ao salvar token:', e); }
 }
 
-function removeToken(): void {
+function removeTokenInternal(): void {
     if (!browser) return;
     try   { localStorage.removeItem('token'); }
     catch (e) { console.error('[api] Falha ao remover token:', e); }
 }
 
-function authHeaders(): Record<string, string> {
-    const token = getToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
+// ─── Funções de token EXPORTADAS (públicas) ───────────────────────────────────
 
-// ✅ NOVA FUNÇÃO: Valida se o token existe e não expirou
+export const getToken = getTokenInternal;
+export const setToken = setTokenInternal;
+export const removeToken = removeTokenInternal;
+
+// Aliases para compatibilidade com código existente
+export const apiSetToken = setTokenInternal;
+export const apiRemoveToken = removeTokenInternal;
+export const apiGetToken = getTokenInternal;
+
+// ─── Validação de token ──────────────────────────────────────────────────────
+
+/**
+ * Verifica se o token existe e não está expirado
+ */
 export function isTokenValid(): boolean {
     if (!browser) return false;
     
-    const token = getToken();
+    const token = getTokenInternal();
     if (!token) return false;
     
     try {
@@ -222,25 +291,27 @@ export function isTokenValid(): boolean {
         // Verifica se o token expirou (exp é timestamp em segundos)
         if (payload.exp && payload.exp * 1000 < Date.now()) {
             console.log('[api] Token expirado, removendo...');
-            removeToken();
+            removeTokenInternal();
             return false;
         }
         
         return true;
     } catch (e) {
         console.error('[api] Erro ao validar token:', e);
-        removeToken();
+        removeTokenInternal();
         return false;
     }
 }
 
-// ✅ NOVA FUNÇÃO: Verifica auth e redireciona se necessário
+/**
+ * Verifica autenticação e redireciona se necessário
+ */
 export function checkAuthAndRedirect(): boolean {
     if (!browser) return false;
     
     const isValid = isTokenValid();
     if (!isValid) {
-        removeToken();
+        removeTokenInternal();
         const path = window.location.pathname;
         if (!path.includes('/auth') && path !== '/') {
             goto('/');
@@ -248,6 +319,11 @@ export function checkAuthAndRedirect(): boolean {
         return false;
     }
     return true;
+}
+
+function authHeaders(): Record<string, string> {
+    const token = getTokenInternal();
+    return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 // ─── Request base ─────────────────────────────────────────────────────────────
@@ -274,10 +350,10 @@ async function request<T>(
             credentials: 'omit',
         });
 
-        // ✅ MELHORADO: Verifica token válido ANTES de qualquer ação
+        // Tratamento de 401 (token inválido/expirado)
         if (res.status === 401 && browser) {
             console.log('[api] Recebido 401, token inválido/expirado');
-            removeToken();
+            removeTokenInternal();
             
             // Limpa também o user do localStorage
             try {
@@ -337,10 +413,9 @@ async function requestMultipart<T>(
             body,
         });
 
-        // ✅ MELHORADO: Mesma validação para uploads
         if (res.status === 401 && browser) {
             console.log('[api] Upload: Recebido 401, token inválido');
-            removeToken();
+            removeTokenInternal();
             try { localStorage.removeItem('auth_user'); } catch {}
             if (!window.location.pathname.includes('/auth')) goto('/');
         }
@@ -365,36 +440,43 @@ async function requestMultipart<T>(
 
 // ─── UserController ───────────────────────────────────────────────────────────
 
+/** POST /users/login */
 export const apiLogin = (email: string, password: string) =>
     request<LoginResponse>('/users/login', {
         method: 'POST',
         body:   JSON.stringify({ email, password }),
     });
 
+/** POST /users */
 export const apiRegister = (user: { nome: string; email: string; password: string }) =>
     request<UserResponse>('/users', {
         method: 'POST',
         body:   JSON.stringify(user),
     });
 
+/** POST /users/forgot-password */
 export const apiForgotPassword = (email: string) =>
     request('/users/forgot-password', {
         method: 'POST',
         body:   JSON.stringify({ email }),
     });
 
+/** GET /users/me */
 export const apiGetMe = () => request<UserResponse>('/users/me');
 
+/** PUT /users/me */
 export const apiUpdateMe = (user: Partial<Pick<UserResponse, 'email' | 'nome'>>) =>
     request<UserResponse>('/users/me', {
         method: 'PUT',
         body:   JSON.stringify(user),
     });
 
+/** DELETE /users/me */
 export const apiDeleteMe = () => request('/users/me', { method: 'DELETE' });
 
 // ─── PessoaController ─────────────────────────────────────────────────────────
 
+/** GET /pessoas?interesse=&genero=&page=&size= → Page<PessoaPerfilDTO> */
 export const apiGetPessoas = (params?: {
     interesse?: Interesse | string;
     genero?:    Genero    | string;
@@ -409,57 +491,80 @@ export const apiGetPessoas = (params?: {
     return request<PageResponse<PessoaPerfilDTO>>(`/pessoas?${qs}`);
 };
 
+/** GET /pessoas/{id}/perfil → PessoaPerfilDTO. SEM redes sociais. */
 export const apiGetPessoa = (id: string) =>
     request<PessoaPerfilDTO>(`/pessoas/${id}/perfil`);
 
+/** GET /pessoas/me → PessoaCompletaDTO (com redes sociais e imagens). */
 export const apiGetMyProfile = () =>
     request<PessoaCompletaDTO>('/pessoas/me');
 
+/**
+ * POST /pessoas — cienciaResponsabilidade DEVE ser true.
+ * 409 se perfil ja existe para este usuario.
+ */
 export const apiCreatePessoa = (pessoa: PessoaPayload) =>
     request<PessoaPerfilDTO>('/pessoas', {
         method: 'POST',
         body:   JSON.stringify(pessoa),
     });
 
+/** PUT /pessoas/me — id e usuarioId setados pelo controller via JWT. */
 export const apiUpdateMyProfile = (pessoa: PessoaPayload) =>
     request<PessoaPerfilDTO>('/pessoas/me', {
         method: 'PUT',
         body:   JSON.stringify(pessoa),
     });
 
+/** DELETE /pessoas/me */
 export const apiDeleteMyProfile = () =>
     request('/pessoas/me', { method: 'DELETE' });
 
+/** PATCH /pessoas/me/ciencia-responsabilidade */
 export const apiMarcarCiencia = () =>
     request<PessoaPerfilDTO>('/pessoas/me/ciencia-responsabilidade', { method: 'PATCH' });
 
 // ─── MatchController ──────────────────────────────────────────────────────────
 
+/** GET /matches/meus?page=&size= */
 export const apiGetMyMatches = (page = 0, size = 20) =>
     request<PageResponse<MatchResponse>>(`/matches/meus?page=${page}&size=${size}`);
 
+/** GET /matches/{matchId}/redes-sociais → PessoaRedesSociaisDTO */
 export const apiGetMatchRedesSociais = (matchId: string) =>
     request<PessoaRedesSociaisDTO>(`/matches/${matchId}/redes-sociais`);
 
+/** PUT /matches/desfazer/{matchId} */
 export const apiDesfazerMatch = (matchId: string) =>
     request(`/matches/desfazer/${matchId}`, { method: 'PUT' });
 
 // ─── LikeController ───────────────────────────────────────────────────────────
 
+/**
+ * POST /likes?destinoId={id}
+ * origemId vem do JWT — NAO enviar no body.
+ * Retorna { match: boolean, message: string }
+ */
 export const apiDarLike = (destinoId: string) =>
     request<LikeResultResponse>(
         `/likes?destinoId=${encodeURIComponent(destinoId)}`,
         { method: 'POST' }
     );
 
+/** GET /likes/dados?page=&size= */
 export const apiGetLikesDados = (page = 0, size = 20) =>
     request<PageResponse<LikeResponse>>(`/likes/dados?page=${page}&size=${size}`);
 
+/** GET /likes/recebidos?page=&size= */
 export const apiGetLikesRecebidos = (page = 0, size = 20) =>
     request<PageResponse<LikeResponse>>(`/likes/recebidos?page=${page}&size=${size}`);
 
 // ─── ImagemController ─────────────────────────────────────────────────────────
 
+/**
+ * POST /api/imagens/upload
+ * @ModelAttribute ImagemUploadDTO { file: MultipartFile, perfil: boolean }
+ */
 export const apiUploadImagem = (
     file: File,
     perfil: boolean
@@ -486,18 +591,23 @@ export const apiUploadImagem = (
     return requestMultipart<ImagemUploadResponse>('/api/imagens/upload', form);
 };
 
+/** DELETE /api/imagens/{imagemId} */
 export const apiDeleteImagem = (imagemId: string) =>
     request<ImagemUploadResponse>(`/api/imagens/${imagemId}`, { method: 'DELETE' });
 
+/** GET /api/imagens/minhas-imagens */
 export const apiListMinhasImagens = () =>
     request<ImagemUploadResponse[]>('/api/imagens/minhas-imagens');
 
 // ─── TagController ────────────────────────────────────────────────────────────
 
+/** GET /tags — publico, sem JWT */
 export const apiGetTags = () => request<TagResponse[]>('/tags');
 
+/** GET /tags/ativas — publico, sem JWT */
 export const apiGetTagsAtivas = () => request<TagResponse[]>('/tags/ativas');
 
+/** POST /tags — exige JWT */
 export const apiCreateTag = (tag: Omit<TagResponse, 'id'>) =>
     request<TagResponse>('/tags', {
         method: 'POST',
@@ -506,13 +616,15 @@ export const apiCreateTag = (tag: Omit<TagResponse, 'id'>) =>
 
 // ─── Utilitarios ─────────────────────────────────────────────────────────────
 
-export const getApiBaseUrl  = (): string => BASE_URL;
-export const apiSetToken    = setToken;
-export const apiRemoveToken = removeToken;
-export const apiGetToken    = getToken;
+export const getApiBaseUrl = (): string => BASE_URL;
 
 // ─── OAuth2 ───────────────────────────────────────────────────────────────────
 
+/**
+ * Retorna a URL de autenticação do Google via Spring Security OAuth2.
+ * O backend redireciona para o Google e após autenticação chama
+ * OAuth2SuccessHandler que gera o JWT e redireciona para /auth/callback?token=...
+ */
 export const getGoogleOAuthUrl = (): string =>
     `${BASE_URL}/oauth2/authorization/google`;
 
