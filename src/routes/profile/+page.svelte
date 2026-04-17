@@ -219,7 +219,7 @@
         </button>
         <div class="header-logo">
             <span class="header-star">✦</span>
-            <span class="header-brand">UneSe</span>
+            <span class="header-brand">Pairup</span>
         </div>
         <button class="logout-btn" on:click={() => showLogoutConfirm = true} aria-label="Sair">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

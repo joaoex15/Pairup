@@ -236,7 +236,7 @@
     <header class="header">
         <div class="header-logo">
             <span class="header-icon" aria-hidden="true">🎓</span>
-            <span class="header-brand">UNeSe</span>
+            <span class="header-brand">Pairup</span>
         </div>
         <p class="header-step" aria-live="polite">Etapa {step} de {TOTAL_STEPS}</p>
     </header>
@@ -485,7 +485,7 @@
                                     <a href="/termos" target="_blank" rel="noopener noreferrer" class="terms-link">Termos de Uso</a>
                                     e a
                                     <a href="/privacidade" target="_blank" rel="noopener noreferrer" class="terms-link">Política de Privacidade</a>
-                                    da UNeSe. Confirmo que tenho pelo menos 18 anos e que sou estudante universitário(a).
+                                    da Pairup. Confirmo que tenho pelo menos 18 anos e que sou estudante universitário(a).
                                 </span>
                             </label>
                             {#if errors.termos}

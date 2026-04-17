@@ -120,7 +120,7 @@
         </button>
         <div class="header-logo">
             <span class="header-icon">🎓</span>
-            <span class="header-brand">UneSe</span>
+            <span class="header-brand">Pairup</span>
         </div>
         <div style="width:36px"></div>
     </header>

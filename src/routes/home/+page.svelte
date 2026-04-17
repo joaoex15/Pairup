@@ -277,7 +277,7 @@
     <header class="header">
         <div class="header-logo">
             <span class="header-icon" aria-hidden="true">🎓</span>
-            <span class="header-brand">UneSe</span>
+            <span class="header-brand">Pairup</span>
         </div>
         <nav class="header-nav" aria-label="Navegação principal">
             <button class="nav-btn" class:nav-btn--active={filtroAtivo} on:click={() => showFilters = !showFilters}

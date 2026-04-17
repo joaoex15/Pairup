@@ -98,7 +98,7 @@
     <div class="page-header">
         <div class="page-logo">
             <span class="page-icon" aria-hidden="true">🎓</span>
-            <span class="page-brand">UneSe</span>
+            <span class="page-brand">Pairup</span>
         </div>
 
         {#if mode === 'login'}
@@ -106,7 +106,7 @@
             <p class="page-sub">Entre na sua conta para continuar</p>
         {:else if mode === 'register'}
             <h1 class="page-title">Criar conta</h1>
-            <p class="page-sub">Comece sua jornada no UneSe</p>
+            <p class="page-sub">Comece sua jornada no Pairup</p>
         {:else}
             <h1 class="page-title">Recuperar senha</h1>
             <p class="page-sub">Enviaremos as instruções por e-mail</p>
