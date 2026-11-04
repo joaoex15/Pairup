@@ -1,25 +1,23 @@
 // $lib/services/api.ts
-// ✅ ÚNICO arquivo de requisições.
-// ✅ Cada interface espelha EXATAMENTE o DTO Java correspondente.
+// Único arquivo que faz requisições. Os tipos do contrato ficam em ./types.
 
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
+import type {
+    ApiResponse, Genero, ImagemUploadResponse, Interesse, LikeResponse, LikeResultResponse,
+    LoginResponse, MatchResponse, PageResponse, PessoaCompletaDTO, PessoaPayload, PessoaPerfilDTO,
+    PessoaRedesSociaisDTO, TagResponse, UserResponse
+} from './types';
+
+export type * from './types';
 
 // ─── BASE URL ─────────────────────────────────────────────────────────────────
 
 const getBaseUrl = (): string => {
-    if (import.meta.env.VITE_API_BASE) return import.meta.env.VITE_API_BASE;
-    if (import.meta.env.VITE_API_URL)  return import.meta.env.VITE_API_URL;
-    if (import.meta.env.VERCEL_URL) {
-        const proto = import.meta.env.VERCEL_ENV === 'production' ? 'https' : 'http';
-        return `${proto}://${import.meta.env.VERCEL_URL}`;
-    }
-    if (import.meta.env.DEV) {
-        console.warn('[api] Usando localhost. Configure VITE_API_BASE no .env');
-        return 'http://localhost:8080';
-    }
-    console.warn('[api] Usando fallback de producao. Configure VITE_API_BASE.');
-    return 'https://pairup-production-b9ee.up.railway.app';
+    const url = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+    if (url) return url;
+    console.warn('[api] VITE_API_BASE não configurada, usando http://localhost:8080');
+    return 'http://localhost:8080';
 };
 
 const BASE_URL = getBaseUrl();
@@ -43,235 +41,25 @@ const checkRateLimit = (endpoint: string): boolean => {
     return true;
 };
 
-// ─── Enums espelhando os enums Java ──────────────────────────────────────────
+// ─── Token ────────────────────────────────────────────────────────────────────
 
-export type Genero    = 'MASCULINO' | 'FEMININO' | 'NAO_BINARIO' | 'OUTRO';
-export type Interesse = 'HOMENS' | 'MULHERES' | 'TODOS' | 'NAO_DEFINIDO';
-
-// ─── Interfaces espelhando os DTOs Java ──────────────────────────────────────
-
-/**
- * LoginRequestDTO { email: String, password: String }
- * Usado em: POST /users/login
- */
-export interface LoginRequest {
-    email:    string;
-    password: string;
-}
-
-/**
- * Retorno de POST /users/login
- * Backend: Map.of("token", token, "userId", user.getId(), "email", user.getEmail())
- */
-export interface LoginResponse {
-    token:  string;
-    userId: string;
-    email:  string;
-}
-
-/**
- * Retorno de GET /users/me, PUT /users/me, POST /users
- * Backend serializa User com password=null.
- */
-export interface UserResponse {
-    id:        string;
-    email:     string;
-    nome?:     string;
-    provider?: string;
-}
-
-/**
- * Tag model — retornado por GET /tags e GET /tags/ativas
- */
-export interface TagResponse {
-    id:         string;
-    nome:       string;
-    descricao?: string;
-    categoria:  string;
-    ativa:      boolean;
-}
-
-/**
- * ImagemUploadResponseDTO — retornado por POST /api/imagens/upload,
- * DELETE /api/imagens/{id}, GET /api/imagens/minhas-imagens.
- */
-export interface ImagemUploadResponse {
-    id?:           string;
-    url?:          string;
-    nomeOriginal?: string;
-    perfil:        boolean;
-    tamanhoBytes?: number;
-    mensagem?:     string;
-    sucesso:       boolean;
-}
-
-/**
- * Modelo Imagem serializado dentro de PessoaPerfilDTO e PessoaCompletaDTO.
- */
-export interface ImagemResponse {
-    id:            string;
-    url:           string;
-    publicId?:     string;
-    folderPath?:   string;
-    perfil:        boolean;
-    dataUpload?:   string;
-    tamanhoBytes?: number;
-    mimeType?:     string;
-    ativa?:        boolean;
-}
-
-/**
- * PessoaPerfilDTO — retornado por:
- *   GET /pessoas                (Page<PessoaPerfilDTO>)
- *   GET /pessoas/{id}/perfil    (PessoaPerfilDTO)
- *
- * NAO contem redes sociais (instagram/whatsapp/telegram).
- * tags: List<String> — IDs das tags.
- */
-export interface PessoaPerfilDTO {
-    id:             string;
-    nome:           string;
-    curso?:         string;
-    dataNasc?:      string;
-    email:          string;
-    genero?:        Genero;
-    interesse?:     Interesse;
-    descricao?:     string;
-    tags?:          string[];
-    imagens?:       ImagemResponse[];
-    fotoPerfilUrl?: string;
-}
-
-/**
- * PessoaCompletaDTO — retornado por GET /pessoas/me (perfil proprio).
- * Contem TUDO: dados pessoais + redes sociais + imagens + cienciaResponsabilidade.
- * tags: List<String> (IDs).
- */
-export interface PessoaCompletaDTO {
-    id:                      string;
-    nome:                    string;
-    curso?:                  string;
-    dataNasc?:               string;
-    email:                   string;
-    genero?:                 Genero;
-    interesse?:              Interesse;
-    descricao?:              string;
-    tags?:                   string[];
-    cienciaResponsabilidade: boolean;
-    instagram?:              string;
-    whatsapp?:               string;
-    telegram?:               string;
-    imagens?:                ImagemResponse[];
-    fotoPerfilUrl?:          string;
-}
-
-/**
- * PessoaRedesSociaisDTO — retornado EXCLUSIVAMENTE por:
- *   GET /matches/{matchId}/redes-sociais
- */
-export interface PessoaRedesSociaisDTO {
-    id?:        string;
-    instagram?: string;
-    whatsapp?:  string;
-    telegram?:  string;
-}
-
-/**
- * Payload de POST /pessoas e PUT /pessoas/me.
- * cienciaResponsabilidade: DEVE ser true no POST /pessoas.
- * usuarioId: NAO enviar — controller seta via JWT.
- * tags: string[] de IDs.
- */
-export interface PessoaPayload {
-    nome:                    string;
-    email:                   string;
-    curso?:                  string;
-    dataNasc?:               string;
-    genero:                  Genero | string;
-    interesse:               Interesse | string;
-    descricao?:              string;
-    instagram?:              string;
-    whatsapp?:               string;
-    telegram?:               string;
-    ativo?:                  boolean;
-    cienciaResponsabilidade: boolean;
-    tags?:                   string[];
-}
-
-/**
- * Match model — retornado por GET /matches/meus (Page<Match>).
- */
-export interface MatchResponse {
-    id:        string;
-    pessoaId1: string;
-    pessoaId2: string;
-    ativo:     boolean;
-}
-
-/**
- * Like model — retornado por GET /likes/dados e GET /likes/recebidos.
- */
-export interface LikeResponse {
-    id:              string;
-    pessoaOrigemId:  string;
-    pessoaDestinoId: string;
-    ativo:           boolean;
-}
-
-/**
- * Retorno de POST /likes?destinoId=...
- */
-export interface LikeResultResponse {
-    match:   boolean;
-    message: string;
-}
-
-/** Wrapper de paginacao Spring Page<T> */
-export interface PageResponse<T> {
-    content:       T[];
-    totalElements: number;
-    totalPages:    number;
-    number:        number;
-    size:          number;
-}
-
-/** Wrapper padrao de todas as respostas da camada api.ts */
-export interface ApiResponse<T = unknown> {
-    data?:   T;
-    error?:  string;
-    status?: number;
-}
-
-// ─── Helpers de token (versões internas) ─────────────────────────────────────
-
-function getTokenInternal(): string | null {
+export function getToken(): string | null {
     if (!browser) return null;
     try   { return localStorage.getItem('token'); }
     catch { return null; }
 }
 
-function setTokenInternal(token: string): void {
+export function setToken(token: string): void {
     if (!browser) return;
     try   { localStorage.setItem('token', token); }
     catch (e) { console.error('[api] Falha ao salvar token:', e); }
 }
 
-function removeTokenInternal(): void {
+export function removeToken(): void {
     if (!browser) return;
     try   { localStorage.removeItem('token'); }
     catch (e) { console.error('[api] Falha ao remover token:', e); }
 }
-
-// ─── Funções de token EXPORTADAS (públicas) ───────────────────────────────────
-
-export const getToken = getTokenInternal;
-export const setToken = setTokenInternal;
-export const removeToken = removeTokenInternal;
-
-// Aliases para compatibilidade com código existente
-export const apiSetToken = setTokenInternal;
-export const apiRemoveToken = removeTokenInternal;
-export const apiGetToken = getTokenInternal;
 
 // ─── Validação de token ──────────────────────────────────────────────────────
 
@@ -281,7 +69,7 @@ export const apiGetToken = getTokenInternal;
 export function isTokenValid(): boolean {
     if (!browser) return false;
     
-    const token = getTokenInternal();
+    const token = getToken();
     if (!token) return false;
     
     try {
@@ -290,80 +78,73 @@ export function isTokenValid(): boolean {
         
         // Verifica se o token expirou (exp é timestamp em segundos)
         if (payload.exp && payload.exp * 1000 < Date.now()) {
-            console.log('[api] Token expirado, removendo...');
-            removeTokenInternal();
+            removeToken();
             return false;
         }
         
         return true;
     } catch (e) {
         console.error('[api] Erro ao validar token:', e);
-        removeTokenInternal();
+        removeToken();
         return false;
     }
 }
 
-/**
- * Verifica autenticação e redireciona se necessário
- */
-export function checkAuthAndRedirect(): boolean {
-    if (!browser) return false;
-    
-    const isValid = isTokenValid();
-    if (!isValid) {
-        removeTokenInternal();
-        const path = window.location.pathname;
-        if (!path.includes('/auth') && path !== '/') {
-            goto('/');
-        }
-        return false;
+// O authStore registra aqui o seu logout: assim, quando o backend responde 401
+// (token expirado — dura 15 min e nao ha refresh), o estado da store tambem e limpo.
+// Sem isso a store continuava "autenticada" e / ⇄ /home entravam em loop.
+let unauthorizedHandler: (() => void) | null = null;
+
+export function onUnauthorized(handler: () => void): void {
+    unauthorizedHandler = handler;
+}
+
+function handleUnauthorized(): void {
+    if (!browser) return;
+    removeToken();
+    try { localStorage.removeItem('auth_user'); } catch {}
+    if (unauthorizedHandler) {
+        unauthorizedHandler();
+    } else if (!window.location.pathname.includes('/auth') && window.location.pathname !== '/') {
+        goto('/');
     }
-    return true;
 }
 
 function authHeaders(): Record<string, string> {
-    const token = getTokenInternal();
+    const token = getToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 // ─── Request base ─────────────────────────────────────────────────────────────
 
-async function request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-): Promise<ApiResponse<T>> {
+/**
+ * O backend devolve erro em quatro formatos: { erro } (GlobalExceptionHandler, JwtFilter),
+ * { erro, campos[] } (validação), { error } (PessoaController) e { mensagem } (imagens).
+ */
+function extrairErro(body: unknown, status: number): string {
+    if (typeof body === 'string') return body || `HTTP ${status}`;
+    const b = (body ?? {}) as {
+        erro?: string; error?: string; mensagem?: string; message?: string; campos?: string[];
+    };
+    const msg = b.erro ?? b.error ?? b.mensagem ?? b.message ?? `HTTP ${status}`;
+    return b.campos?.length ? `${msg}: ${b.campos.join('; ')}` : msg;
+}
+
+async function enviar<T>(endpoint: string, init: RequestInit): Promise<ApiResponse<T>> {
     if (!checkRateLimit(endpoint)) {
         return { error: 'Muitas requisicoes. Aguarde um momento.', status: 429 };
     }
 
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...authHeaders(),
-        ...(options.headers as Record<string, string> ?? {}),
-    };
-
     try {
         const res = await fetch(`${BASE_URL}${endpoint}`, {
-            ...options,
-            headers,
+            ...init,
             mode:        'cors',
             credentials: 'omit',
         });
 
-        // Tratamento de 401 (token inválido/expirado)
-        if (res.status === 401 && browser) {
-            console.log('[api] Recebido 401, token inválido/expirado');
-            removeTokenInternal();
-            
-            // Limpa também o user do localStorage
-            try {
-                localStorage.removeItem('auth_user');
-            } catch {}
-            
-            const path = window.location.pathname;
-            if (!path.includes('/auth') && path !== '/') {
-                await goto('/');
-            }
+        // /users/login responde 401 para senha errada — isso nao e sessao expirada.
+        if (res.status === 401 && endpoint !== '/users/login') {
+            handleUnauthorized();
         }
 
         if (res.status === 204 || res.status === 205) return { status: res.status };
@@ -373,69 +154,32 @@ async function request<T>(
         try   { body = JSON.parse(text); }
         catch { body = text; }
 
-        if (!res.ok) {
-            const msg =
-                typeof body === 'string'
-                    ? body
-                    : (body as Record<string, string>)?.erro
-                    ?? (body as Record<string, string>)?.error
-                    ?? (body as Record<string, string>)?.message
-                    ?? `HTTP ${res.status}`;
-            return { error: msg, status: res.status };
-        }
-
+        if (!res.ok) return { error: extrairErro(body, res.status), status: res.status };
         return { data: body as T, status: res.status };
 
     } catch (err) {
         console.error(`[api] Falha: ${endpoint}`, err);
-        if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        if (err instanceof TypeError) {
             return { error: 'Erro de conexao. Verifique sua internet.', status: 0 };
         }
         return { error: err instanceof Error ? err.message : 'Erro inesperado', status: 0 };
     }
 }
 
-// ─── Upload multipart ─────────────────────────────────────────────────────────
+function request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+    return enviar<T>(endpoint, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+            ...(options.headers as Record<string, string> ?? {}),
+        },
+    });
+}
 
-async function requestMultipart<T>(
-    endpoint: string,
-    body: FormData
-): Promise<ApiResponse<T>> {
-    if (!checkRateLimit(endpoint)) {
-        return { error: 'Muitas requisicoes. Aguarde um momento.', status: 429 };
-    }
-    try {
-        const res = await fetch(`${BASE_URL}${endpoint}`, {
-            method:      'POST',
-            headers:     authHeaders(),
-            mode:        'cors',
-            credentials: 'omit',
-            body,
-        });
-
-        if (res.status === 401 && browser) {
-            console.log('[api] Upload: Recebido 401, token inválido');
-            removeTokenInternal();
-            try { localStorage.removeItem('auth_user'); } catch {}
-            if (!window.location.pathname.includes('/auth')) goto('/');
-        }
-
-        if (!res.ok) {
-            const text = await res.text();
-            try {
-                const parsed = JSON.parse(text) as { mensagem?: string };
-                return { error: parsed.mensagem ?? `HTTP ${res.status}`, status: res.status };
-            } catch {
-                return { error: text || `HTTP ${res.status}`, status: res.status };
-            }
-        }
-
-        return { data: await res.json() as T, status: res.status };
-
-    } catch (err) {
-        console.error(`[api] Upload falhou: ${endpoint}`, err);
-        return { error: err instanceof Error ? err.message : 'Erro no upload', status: 0 };
-    }
+/** Sem Content-Type: o navegador define o boundary do multipart. */
+function requestMultipart<T>(endpoint: string, body: FormData): Promise<ApiResponse<T>> {
+    return enviar<T>(endpoint, { method: 'POST', headers: authHeaders(), body });
 }
 
 // ─── UserController ───────────────────────────────────────────────────────────
@@ -452,13 +196,6 @@ export const apiRegister = (user: { nome: string; email: string; password: strin
     request<UserResponse>('/users', {
         method: 'POST',
         body:   JSON.stringify(user),
-    });
-
-/** POST /users/forgot-password */
-export const apiForgotPassword = (email: string) =>
-    request('/users/forgot-password', {
-        method: 'POST',
-        body:   JSON.stringify({ email }),
     });
 
 /** GET /users/me */
@@ -616,7 +353,16 @@ export const apiCreateTag = (tag: Omit<TagResponse, 'id'>) =>
 
 // ─── Utilitarios ─────────────────────────────────────────────────────────────
 
-export const getApiBaseUrl = (): string => BASE_URL;
+/**
+ * Sem CF_R2_PUBLIC_URL o backend grava URLs relativas ("/api/imagens/proxy/...").
+ * No <img> elas resolveriam contra a origem do front — prefixa com a URL da API.
+ * (Obs.: o proxy exige header Authorization, que <img> nao envia; esse modo so
+ * funciona se o backend aceitar outra forma de autenticacao para imagens.)
+ */
+export const resolveImageUrl = (url?: string | null): string => {
+    if (!url) return '';
+    return url.startsWith('/') ? `${BASE_URL}${url}` : url;
+};
 
 // ─── OAuth2 ───────────────────────────────────────────────────────────────────
 

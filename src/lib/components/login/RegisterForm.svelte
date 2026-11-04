@@ -1,6 +1,6 @@
 <!-- $lib/components/login/RegisterForm.svelte -->
 <script lang="ts">
-    import InputField   from './InputField.svelte';
+    import InputField from '$lib/components/ui/InputField.svelte';
     import SubmitButton from './SubmitButton.svelte';
     import { validateEmail } from '$lib/utils/errorUtils';
 
@@ -115,14 +115,6 @@
 </form>
 
 <style>
-    .form-header { text-align: center; margin-bottom: 1.25rem; }
-    .form-title {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-        font-size: 1.3rem; font-weight: 800;
-        color: var(--ink, #0F1624); margin-bottom: .25rem;
-        letter-spacing: -.02em;
-    }
-    .form-sub { font-size: .8rem; color: var(--muted, #64748B); }
 
     form { width: 100%; }
 

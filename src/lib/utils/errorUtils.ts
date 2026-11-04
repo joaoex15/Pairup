@@ -1,10 +1,10 @@
 // $lib/utils/errorUtils.ts
 
-// CORREÇÃO: handleApiError agora trata também os códigos de erro
+// handleApiError trata os códigos de erro
 // retornados por ApiResponse.error (strings como "HTTP 403"), além de
-// objetos Error tradicionais — cobrindo ambos os padrões de api.ts.
+// objetos Error tradicionais.
 export function handleApiError(error: unknown): string {
-    // Objeto Error padrão (lançado por authService / código legado)
+    // Objeto Error padrão
     if (error instanceof Error) {
         const msg = error.message;
         if (msg === 'EMAIL_INVALIDO')       return 'E-mail inválido';

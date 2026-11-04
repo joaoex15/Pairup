@@ -3,7 +3,8 @@
     import { goto } from '$app/navigation';
     import { browser } from '$app/environment';
     import { authStore } from '$lib/stores/authStore';
-    import { apiGetMe, apiGetMyProfile, apiSetToken } from '$lib/services/api';
+    import { apiGetMe, apiGetMyProfile, setToken } from '$lib/services/api';
+    import { perfilPendente } from '$lib/utils/pessoa';
 
     let status: 'loading' | 'success' | 'error' = 'loading';
     let errorMessage = '';
@@ -21,7 +22,7 @@
             }
 
             // ✅ Salva o token primeiro
-            apiSetToken(token);
+            setToken(token);
             
             // ✅ Busca os dados do usuário via API autenticada
             const userRes = await apiGetMe();
@@ -35,8 +36,9 @@
             // ✅ CORREÇÃO: busca o perfil para saber se já existe
             const profileRes = await apiGetMyProfile();
             
-            // ✅ Verifica se o perfil existe (tem dados) - NÃO usa perfilCompleto
-            const hasPerfil = !!profileRes.data && !profileRes.error && !!profileRes.data.nome;
+            // O OAuth2SuccessHandler sempre cria uma Pessoa mínima (só nome/e-mail),
+            // então "existir" não basta: precisa de gênero, interesse, data e termos.
+            const hasPerfil = !perfilPendente(profileRes);
             
             // ✅ Faz login na store com os dados completos
             authStore.login(
@@ -82,7 +84,7 @@
     <div class="screen" role="status" aria-live="polite">
         <div class="icon success-icon" aria-hidden="true">✓</div>
         <h1>Login realizado!</h1>
-        <p>Redirecionando para o UneSe...</p>
+        <p>Redirecionando para o Pairup...</p>
         <div class="progress-bar" aria-hidden="true"></div>
     </div>
 {:else}
