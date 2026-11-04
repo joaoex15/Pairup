@@ -140,7 +140,8 @@
 <style>
     .privacidade-container {
         max-width: 800px;
-        margin: 0 auto;
+        margin: 2rem auto;
+        width: calc(100% - 2.5rem);
         padding: 2rem;
         background: white;
         border-radius: 24px;
