@@ -1,5 +1,7 @@
-<!-- $lib/components/InputField.svelte -->
+<!-- $lib/components/ui/InputField.svelte -->
 <script lang="ts">
+    import { uid } from '$lib/utils/uid';
+
     export let label: string = '';
     export let type: string = 'text';
     export let value: string = '';
@@ -8,8 +10,14 @@
     export let required: boolean = false;
     export let readonly: boolean = false;
     export let disabled: boolean = false;
-    
-    const id = `input-${Math.random().toString(36).substr(2, 9)}`;
+    export let autocomplete: HTMLInputElement['autocomplete'] | null = null;
+    export let maxlength: number | undefined = undefined;
+    /** Formata o texto a cada tecla (ex.: mascaraWhatsApp). */
+    export let mask: ((valor: string) => string) | null = null;
+
+    const id = uid();
+
+    const handleInput = () => { if (mask) value = mask(value); };
 </script>
 
 <div class="input-field">
@@ -21,77 +29,34 @@
             {/if}
         </label>
     {/if}
-    
+
     <input
         {id}
         {type}
         bind:value
+        on:input={handleInput}
         {placeholder}
         {readonly}
         {disabled}
+        {autocomplete}
+        {maxlength}
         class="input-el"
         class:input-error={!!error}
     />
-    
+
     {#if error}
         <span class="error-message">{error}</span>
     {/if}
 </div>
 
 <style>
-    .input-field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.28rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    .input-label {
-        font-size: 0.68rem;
-        font-weight: 500;
-        color: var(--muted, #8A7F79);
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-    }
-    
-    .required {
-        color: var(--rose, #D94F6B);
-        margin-left: 0.15rem;
-    }
-    
-    .input-el {
-        width: 100%;
-        padding: 0.68rem 0.85rem;
-        font-family: 'DM Sans', sans-serif;
-        font-size: 0.87rem;
-        color: var(--ink, #1A1410);
-        background: rgba(255,255,255,0.65);
-        border: 1.5px solid rgba(138,127,121,0.22);
-        border-radius: 9px;
-        outline: none;
-        transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    
-    .input-el::placeholder {
-        color: rgba(138,127,121,0.5);
-    }
-    
-    .input-el:focus {
-        border-color: var(--rose, #D94F6B);
-        box-shadow: 0 0 0 3px rgba(217,79,107,0.1);
-    }
-    
-    .input-el:read-only {
-        background: rgba(138,127,121,0.08);
-        cursor: default;
-    }
-    
-    .input-error {
-        border-color: var(--rose, #D94F6B);
-    }
-    
-    .error-message {
-        font-size: 0.7rem;
-        color: var(--rose, #D94F6B);
-    }
+    .input-field { display: flex; flex-direction: column; gap: .28rem; margin-bottom: .5rem; }
+    .input-label { font-size: .68rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .required { color: var(--primary); margin-left: .15rem; }
+    .input-el { width: 100%; padding: .68rem .85rem; font-family: inherit; font-size: .87rem; color: var(--ink); background: rgba(255,255,255,.65); border: 1.5px solid rgba(100,116,139,.22); border-radius: 9px; outline: none; transition: border-color .2s, box-shadow .2s; }
+    .input-el::placeholder { color: rgba(100,116,139,.5); }
+    .input-el:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
+    .input-el:read-only { background: rgba(100,116,139,.08); cursor: default; }
+    .input-error { border-color: var(--error); }
+    .error-message { font-size: .7rem; color: var(--error); }
 </style>
