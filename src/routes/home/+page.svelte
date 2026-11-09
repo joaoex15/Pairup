@@ -8,7 +8,7 @@
         apiDarLike, apiGetTagsAtivas, apiGetLikesDados, apiGetLikesRecebidos,
         type PessoaPerfilDTO, type TagResponse
     } from '$lib/services/api';
-    import { perfilPendente, calcularIdade, compativeis, fotosParaPessoa, type PessoaView } from '$lib/utils/pessoa';
+    import { perfilPendente, compativeis, fotosParaPessoa, type PessoaView } from '$lib/utils/pessoa';
     import AppHeader     from '$lib/components/ui/AppHeader.svelte';
     import Button        from '$lib/components/ui/Button.svelte';
     import EmptyState    from '$lib/components/ui/EmptyState.svelte';
@@ -17,6 +17,7 @@
     import LoadingState  from '$lib/components/ui/LoadingState.svelte';
     import FiltrosAtivos from '$lib/components/home/FiltrosAtivos.svelte';
     import FiltrosPanel  from '$lib/components/home/FiltrosPanel.svelte';
+    import MatchAviso    from '$lib/components/home/MatchAviso.svelte';
     import PessoaCard    from '$lib/components/home/PessoaCard.svelte';
     import SwipeActions  from '$lib/components/home/SwipeActions.svelte';
 
@@ -26,6 +27,7 @@
     let loading       = true;
     let swipeDir: 'like' | 'dislike' | '' = '';
     let matchCount    = 0;
+    let matchComNome  = '';
     let minhaPessoaId = '';
     let minhaPessoa:  PessoaPerfilDTO | null = null;
     let avaliadosIds  = new Set<string>();
@@ -144,7 +146,7 @@
                         ...p,
                         tagObjs: availableTags.filter(t => (p.tags ?? []).includes(t.nome)),
                         fotos:   fotosParaPessoa(p),
-                        idade:   calcularIdade(p.dataNasc),
+                        idade:   p.idade ?? 0,
                     }));
                 aplicarFiltros();
             } else {
@@ -169,6 +171,7 @@
     const like = async () => {
         if (!pessoaAtual || swipeDir) return;
         swipeDir = 'like';
+        const curtida = pessoaAtual;
         avaliadosIds.add(pessoaAtual.id);
         likedByIds.add(pessoaAtual.id);
         
@@ -177,7 +180,8 @@
             if (res.error) console.warn('[like]', res.error);
             if (res.data?.match) {
                 matchCount++;
-                matchedIds.add(pessoaAtual.id);
+                matchedIds.add(curtida.id);
+                matchComNome = curtida.nome;
             }
         } catch (e) { 
             console.error('[like]', e); 
@@ -266,7 +270,7 @@
                 <PessoaCard
                     pessoa={pessoaAtual}
                     {swipeDir}
-                    atalhos={!showFilters}
+                    atalhos={!showFilters && !matchComNome}
                     tagsDestacadas={filtroTags.map(t => t.id)}
                     onLike={like}
                     onDislike={dislike}
@@ -278,6 +282,14 @@
             <p class="swipe-hint" aria-hidden="true">← arraste o card ou use as setas →</p>
         {/if}
     </main>
+
+    {#if matchComNome}
+        <MatchAviso
+            nome={matchComNome}
+            onVerMatches={() => goto('/matches')}
+            onFechar={() => matchComNome = ''}
+        />
+    {/if}
 </div>
 
 <style>

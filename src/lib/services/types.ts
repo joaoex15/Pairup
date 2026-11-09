@@ -91,8 +91,7 @@ export interface PessoaPerfilDTO {
     id:             string;
     nome:           string;
     curso?:         string;
-    dataNasc?:      string;
-    email:          string;
+    idade?:         number;
     genero?:        Genero;
     interesse?:     Interesse;
     descricao?:     string;

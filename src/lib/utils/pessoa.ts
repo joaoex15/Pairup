@@ -16,16 +16,6 @@ export interface PessoaView extends PessoaPerfilDTO {
 export const perfilPendente = (res: { data?: { perfilCompleto: boolean }; status?: number }): boolean =>
     res.status === 404 || (!!res.data && !res.data.perfilCompleto);
 
-export const calcularIdade = (dataNasc?: string): number => {
-    if (!dataNasc) return 0;
-    const nasc = new Date(dataNasc);
-    const hoje = new Date();
-    let idade = hoje.getFullYear() - nasc.getFullYear();
-    const mesDiff = hoje.getMonth() - nasc.getMonth();
-    if (mesDiff < 0 || (mesDiff === 0 && hoje.getDate() < nasc.getDate())) idade--;
-    return idade;
-};
-
 /** Foto de perfil primeiro, depois o resto da galeria. */
 export const fotosParaPessoa = (p: PessoaPerfilDTO): string[] => {
     const urls: string[] = [];
