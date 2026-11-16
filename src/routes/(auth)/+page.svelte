@@ -21,8 +21,23 @@
     let successMessage    = '';
     let isLoading         = false;
 
+    // Erros que o back devolve ao voltar do login Google (OAuth2SuccessHandler)
+    const ERROS_GOOGLE: Record<string, string> = {
+        conta_com_senha:
+            'Este e-mail já tem uma conta com senha. Entre com e-mail e senha.',
+        email_nao_verificado:
+            'O Google não confirmou este e-mail. Verifique sua conta Google e tente de novo.',
+    };
+
     // ✅ Redireciona usuário já autenticado direto para /home
     onMount(() => {
+        const params = new URLSearchParams(window.location.search);
+        const erro   = params.get('erro');
+        if (erro) {
+            globalError = ERROS_GOOGLE[erro] ?? 'Não foi possível entrar com o Google.';
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+
         const unsub = authStore.subscribe(state => {
             if (!state.isLoading && state.isAuthenticated) {
                 goto('/home');

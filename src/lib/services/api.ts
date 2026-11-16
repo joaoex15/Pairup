@@ -4,7 +4,7 @@
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import type {
-    ApiResponse, Genero, ImagemUploadResponse, Interesse, LikeResponse, LikeResultResponse,
+    ApiResponse, DislikeResponse, Genero, ImagemUploadResponse, Interesse, LikeResponse, LikeResultResponse,
     LoginResponse, MatchResponse, PageResponse, PessoaCompletaDTO, PessoaPayload, PessoaPerfilDTO,
     PessoaRedesSociaisDTO, TagResponse, UserResponse
 } from './types';
@@ -201,8 +201,8 @@ export const apiRegister = (user: { nome: string; email: string; password: strin
 /** GET /users/me */
 export const apiGetMe = () => request<UserResponse>('/users/me');
 
-/** PUT /users/me */
-export const apiUpdateMe = (user: Partial<Pick<UserResponse, 'email' | 'nome'>>) =>
+/** PUT /users/me — trocar o e-mail exige senhaAtual (conta Google não troca e-mail). */
+export const apiUpdateMe = (user: Partial<Pick<UserResponse, 'email' | 'nome'>> & { senhaAtual?: string }) =>
     request<UserResponse>('/users/me', {
         method: 'PUT',
         body:   JSON.stringify(user),
@@ -225,7 +225,27 @@ export const apiGetPessoas = (params?: {
     if (params?.genero)    qs.set('genero',    params.genero);
     qs.set('page', String(params?.page ?? 0));
     qs.set('size', String(params?.size ?? 20));
+    // Ordem estável entre páginas: o ObjectId cresce com a criação, então perfis novos
+    // entram no fim e não deslocam as páginas já lidas.
+    qs.set('sort', 'id');
     return request<PageResponse<PessoaPerfilDTO>>(`/pessoas?${qs}`);
+};
+
+/**
+ * Percorre todas as páginas de um endpoint paginado e junta o conteúdo.
+ * Devolve null se alguma página falhar, para o chamador não tratar uma lista parcial como completa.
+ */
+export const buscarTodasPaginas = async <T>(
+    buscar: (page: number, size: number) => Promise<ApiResponse<PageResponse<T>>>,
+    size = 100,
+): Promise<T[] | null> => {
+    const itens: T[] = [];
+    for (let page = 0; ; page++) {
+        const res = await buscar(page, size);
+        if (!res.data) return null;
+        itens.push(...(res.data.content ?? []));
+        if (page + 1 >= res.data.totalPages || (res.data.content ?? []).length === 0) return itens;
+    }
 };
 
 /** GET /pessoas/{id}/perfil → PessoaPerfilDTO. SEM redes sociais. */
@@ -282,6 +302,14 @@ export const apiDesfazerMatch = (matchId: string) =>
  * origemId vem do JWT — NAO enviar no body.
  * Retorna { match: boolean, message: string }
  */
+/** POST /dislikes?destinoId= → 204. "Passar": a pessoa não volta ao deck. */
+export const apiDarDislike = (destinoId: string) =>
+    request(`/dislikes?destinoId=${encodeURIComponent(destinoId)}`, { method: 'POST' });
+
+/** GET /dislikes/dados?page=&size= */
+export const apiGetDislikesDados = (page = 0, size = 20) =>
+    request<PageResponse<DislikeResponse>>(`/dislikes/dados?page=${page}&size=${size}`);
+
 export const apiDarLike = (destinoId: string) =>
     request<LikeResultResponse>(
         `/likes?destinoId=${encodeURIComponent(destinoId)}`,

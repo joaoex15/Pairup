@@ -5,7 +5,9 @@
     import { authStore } from '$lib/stores/authStore';
     import {
         apiGetPessoas, apiGetMyProfile, apiGetMyMatches,
-        apiDarLike, apiGetTagsAtivas, apiGetLikesDados, apiGetLikesRecebidos,
+        apiDarLike, apiDarDislike, apiGetTagsAtivas, apiGetLikesDados, apiGetLikesRecebidos,
+        apiGetDislikesDados,
+        buscarTodasPaginas,
         type PessoaPerfilDTO, type TagResponse
     } from '$lib/services/api';
     import { perfilPendente, compativeis, fotosParaPessoa, type PessoaView } from '$lib/utils/pessoa';
@@ -55,17 +57,64 @@
         return matchedIds.has(pessoaId) || likedByIds.has(pessoaId);
     };
 
+    const filtrar = (lista: PessoaView[]): PessoaView[] => lista
+        .filter(p =>
+            !avaliadosIds.has(p.id) &&
+            !jaTeveInteracao(p.id) &&
+            (!minhaPessoa || compativeis(minhaPessoa, p)) &&
+            temTagEmComum(p)
+        )
+        .sort((a, b) => Number(likedMeIds.has(b.id)) - Number(likedMeIds.has(a.id)));
+
+    // ── Feed paginado ──
+    // GET /pessoas não filtra no back, então o deck busca páginas sob demanda:
+    // sempre que restam poucas pessoas visíveis, busca a próxima página.
+    const TAMANHO_PAGINA = 100;
+    const MINIMO_NO_DECK = 5;
+    let proximaPagina  = 0;
+    let fimDoFeed      = false;
+    let carregandoMais = false;
+
+    const paraView = (p: PessoaPerfilDTO): PessoaView => ({
+        ...p,
+        tagObjs: availableTags.filter(t => (p.tags ?? []).includes(t.nome)),
+        fotos:   fotosParaPessoa(p),
+        idade:   p.idade ?? 0,
+    });
+
+    /** Busca páginas até o deck ter pelo menos MINIMO_NO_DECK pessoas ou o feed acabar. */
+    const carregarMaisPessoas = async (): Promise<void> => {
+        if (carregandoMais || fimDoFeed) return;
+        carregandoMais = true;
+        try {
+            while (!fimDoFeed && pessoas.length < MINIMO_NO_DECK) {
+                const res = await apiGetPessoas({ page: proximaPagina, size: TAMANHO_PAGINA });
+                if (!res.data) {
+                    // Falha de rede: para aqui; a próxima troca de card tenta de novo
+                    if (todasPessoas.length === 0) erroCarregamento = true;
+                    return;
+                }
+                const conhecidos = new Set(todasPessoas.map(p => p.id));
+                const novas = (res.data.content ?? [])
+                    .filter(p => p.id !== minhaPessoaId && !conhecidos.has(p.id))
+                    .map(paraView);
+                todasPessoas = [...todasPessoas, ...novas];
+                pessoas      = [...pessoas, ...filtrar(novas)];
+                proximaPagina++;
+                fimDoFeed = proximaPagina >= res.data.totalPages || (res.data.content ?? []).length === 0;
+            }
+        } finally {
+            carregandoMais = false;
+            currentIndex = pessoas.length > 0 ? 0 : -1;
+        }
+    };
+
     const aplicarFiltros = () => {
-        pessoas = todasPessoas
-            .filter(p =>
-                !avaliadosIds.has(p.id) &&
-                !jaTeveInteracao(p.id) &&
-                (!minhaPessoa || compativeis(minhaPessoa, p)) &&
-                temTagEmComum(p)
-            )
-            .sort((a, b) => Number(likedMeIds.has(b.id)) - Number(likedMeIds.has(a.id)));
+        pessoas      = filtrar(todasPessoas);
         currentIndex = pessoas.length > 0 ? 0 : -1;
         showFilters  = false;
+        // Filtro mais restrito pode esvaziar o deck: busca mais páginas se houver
+        void carregarMaisPessoas();
     };
 
     const aplicarSelecao = (tags: TagResponse[]) => { filtroTags = tags; aplicarFiltros(); };
@@ -105,54 +154,43 @@
                 return;
             }
 
-            const [tagsRes, matchRes, likesDadosRes, likesRecebidosRes, pesRes] = await Promise.all([
+            // Matches e likes vêm completos (todas as páginas): servem para tirar do deck
+            // quem já teve interação, e uma lista cortada traria essas pessoas de volta.
+            const [tagsRes, matches, likesDados, likesRecebidos, dislikesDados] = await Promise.all([
                 apiGetTagsAtivas(),
-                apiGetMyMatches(0, 100),
-                apiGetLikesDados(0, 100),
-                apiGetLikesRecebidos(0, 100),
-                apiGetPessoas({ size: 100 }),
+                buscarTodasPaginas(apiGetMyMatches),
+                buscarTodasPaginas(apiGetLikesDados),
+                buscarTodasPaginas(apiGetLikesRecebidos),
+                buscarTodasPaginas(apiGetDislikesDados),
             ]);
+
+            // Quem já foi dispensado não volta ao deck ao recarregar a página
+            for (const d of dislikesDados ?? []) avaliadosIds.add(d.pessoaDestinoId);
 
             if (tagsRes.data) availableTags = tagsRes.data;
             tagsLoading = false;
 
-            if (matchRes.data) {
-                matchCount = matchRes.data.totalElements;
-                const matches = matchRes.data.content ?? [];
+            if (matches) {
+                matchCount = matches.length;
                 for (const m of matches) {
                     const outroId = m.pessoaId1 === minhaPessoaId ? m.pessoaId2 : m.pessoaId1;
                     matchedIds.add(outroId);
                 }
             }
 
-            if (likesDadosRes.data) {
-                const likesDados = likesDadosRes.data.content ?? [];
+            if (likesDados) {
                 for (const l of likesDados) {
                     if (l.ativo) likedByIds.add(l.pessoaDestinoId);
                 }
             }
 
-            if (likesRecebidosRes.data) {
-                const likesRecebidos = likesRecebidosRes.data.content ?? [];
+            if (likesRecebidos) {
                 for (const l of likesRecebidos) {
                     if (l.ativo) likedMeIds.add(l.pessoaOrigemId);
                 }
             }
 
-            if (pesRes.data) {
-                todasPessoas = (pesRes.data.content ?? [])
-                    .filter(p => p.id !== minhaPessoaId)
-                    .map(p => ({
-                        ...p,
-                        tagObjs: availableTags.filter(t => (p.tags ?? []).includes(t.nome)),
-                        fotos:   fotosParaPessoa(p),
-                        idade:   p.idade ?? 0,
-                    }));
-                aplicarFiltros();
-            } else {
-                currentIndex = -1;
-            }
-
+            await carregarMaisPessoas();
             loading = false;
         });
         return unsub;
@@ -165,6 +203,7 @@
             swipeDir = '';
             if (pessoaAtual) pessoas = pessoas.filter(p => p.id !== pessoaAtual!.id);
             currentIndex = pessoas.length > 0 ? 0 : -1;
+            void carregarMaisPessoas();
         }, 320);
     };
 
@@ -192,7 +231,13 @@
     const dislike = () => {
         if (!pessoaAtual || swipeDir) return;
         swipeDir = 'dislike';
-        avaliadosIds.add(pessoaAtual.id);
+        const dispensada = pessoaAtual.id;
+        avaliadosIds.add(dispensada);
+        // Não espera a resposta: o card sai na hora. Se falhar, a pessoa só volta
+        // a aparecer depois de recarregar, como era antes.
+        apiDarDislike(dispensada)
+            .then(res => { if (res.error) console.warn('[dislike]', res.error); })
+            .catch(e => console.error('[dislike]', e));
         avancar();
     };
 
@@ -240,7 +285,7 @@
     {/if}
 
     <main class="main">
-        {#if loading}
+        {#if loading || (!pessoaAtual && carregandoMais)}
             <LoadingState text="Encontrando pessoas..." />
 
         {:else if erroCarregamento}

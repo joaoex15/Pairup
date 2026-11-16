@@ -180,6 +180,14 @@ export interface LikeResponse {
     ativo:           boolean;
 }
 
+/** Item de GET /dislikes/dados: um perfil que a pessoa dispensou no deck. */
+export interface DislikeResponse {
+    id:              string;
+    pessoaOrigemId:  string;
+    pessoaDestinoId: string;
+    data:            string;
+}
+
 /**
  * Retorno de POST /likes?destinoId=...
  */
