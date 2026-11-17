@@ -64,7 +64,9 @@ Tamanho aproximado: 5,2 mil linhas entre `.svelte` e `.ts`.
 - **Erros:** `extrairErro` entende os quatro formatos de erro do back (`erro`, `error`,
   `mensagem`, `message`).
 - **Limite local de chamadas:** no máximo 30 por endpoint por minuto, para evitar loops de
-  requisição. É só uma proteção do cliente; o back não tem rate limit.
+  requisição. É só uma proteção do cliente; o back tem o próprio limite por IP (10/min em
+  login e cadastro, 300/min no resto) e bloqueia por 15 min o e-mail que erra a senha 5 vezes.
+  Nesses casos responde 429, e a mensagem de `erro` aparece na tela.
 - **Retorno:** toda função devolve `{ data?, error?, status? }`, sem lançar exceção por erro
   HTTP.
 - **`buscarTodasPaginas`:** percorre todas as páginas de um endpoint paginado. Os likes, os
@@ -75,12 +77,16 @@ Tamanho aproximado: 5,2 mil linhas entre `.svelte` e `.ts`.
 ### `/` — Login e cadastro
 - Login com e-mail e senha, ou com Google, que redireciona para o back.
 - O cadastro cria a conta e volta para o login.
-- Os erros do login Google chegam como `?erro=`: `conta_com_senha` e `email_nao_verificado`
-  viram mensagens na tela.
+- Os erros do login Google chegam como `?erro=`: `conta_com_senha`, `email_nao_verificado` e
+  `google_falhou` viram mensagens na tela.
+- O cadastro exige senha de 8 a 72 caracteres (`RegisterForm`, igual ao back). O login aceita
+  a partir de 6, para quem criou a conta antes dessa regra.
 - Quem já está logado vai direto para `/home`.
 
 ### `/auth/callback`
-- Guarda o token recebido na URL e apaga esse parâmetro do histórico.
+- Lê o token do fragmento da URL (`#token=...`) e, por compatibilidade com o back antigo,
+  de `?token=`. Limpa a URL **antes** de qualquer chamada, para o token não ficar no histórico.
+  No fragmento, o token não chega ao servidor do front, a logs nem ao `Referer`.
 - Busca a conta e o perfil, e manda para `/home` ou `/onboarding`.
 
 ### `/onboarding`
