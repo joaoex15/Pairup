@@ -13,8 +13,16 @@
         if (!browser) return;
         
         try {
-            const params = new URLSearchParams(window.location.search);
-            const token = params.get('token');
+            // O backend manda o token no fragmento (#token=...), que não vai para logs nem Referer.
+            // A query (?token=) fica só como compatibilidade com backend antigo.
+            const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+            const query = new URLSearchParams(window.location.search);
+            const token = hash.get('token') ?? query.get('token');
+
+            // Tira o token da barra de endereço/histórico antes de qualquer outra coisa
+            if (window.history?.replaceState) {
+                window.history.replaceState({}, '', window.location.pathname);
+            }
             
             // ✅ Verifica se o token existe na URL
             if (!token) {
