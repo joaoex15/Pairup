@@ -27,6 +27,8 @@
             'Este e-mail já tem uma conta com senha. Entre com e-mail e senha.',
         email_nao_verificado:
             'O Google não confirmou este e-mail. Verifique sua conta Google e tente de novo.',
+        google_falhou:
+            'Não foi possível concluir o login com o Google. Tente de novo.',
     };
 
     // ✅ Redireciona usuário já autenticado direto para /home
