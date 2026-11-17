@@ -36,8 +36,8 @@
 
         if (!password) {
             errors.password = 'Senha obrigatória';   hasError = true;
-        } else if (password.length < 6) {
-            errors.password = 'Mínimo 6 caracteres'; hasError = true;
+        } else if (password.length < 8) {
+            errors.password = 'Mínimo 8 caracteres'; hasError = true;
         }
 
         if (!confirmPassword) {
