@@ -1,7 +1,7 @@
 # PairUp — front
 
 Interface web do PairUp (SvelteKit + Svelte 5 + TypeScript). A API fica no repositório
-`Tinder_ufs`; o contrato entre os dois está em `docs/CONTRATO_FRONT_BACK.md`, lá.
+`Tinder_ufs`; o contrato entre os dois (cada rota, corpo e resposta) está em `docs/API.md`, lá.
 
 ## Como rodar
 

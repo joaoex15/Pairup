@@ -1,5 +1,5 @@
 // $lib/services/types.ts
-// Contrato com o backend: cada interface espelha um DTO Java (ver docs/CONTRATO_FRONT_BACK.md
+// Contrato com o backend: cada interface espelha um DTO Java (ver Tinder_ufs/docs/API.md
 // no repositório do backend). Mudou um DTO? Mude aqui também.
 
 // ─── Enums espelhando os enums Java ──────────────────────────────────────────
