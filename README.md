@@ -14,8 +14,9 @@ Interface web do PairUp (SvelteKit + Svelte 5 + TypeScript). A API fica no repos
    npm run dev      # http://localhost:5173
    ```
 
-O login com Google exige que a origem do front esteja na lista de CORS do backend
-(`SecurityConfig`) e que `FRONTEND_URL` aponte para ela.
+A origem do front precisa estar em `CORS_ALLOWED_ORIGINS` no backend (lista separada por
+vírgula; o padrão inclui `http://localhost:5173`), e o login com Google exige que
+`FRONTEND_URL` aponte para ela.
 
 | Comando | Para quê |
 |---|---|
